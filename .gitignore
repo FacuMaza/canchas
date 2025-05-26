@@ -1,0 +1,118 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib60/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+# Bases de datos locales (SQLite)
+*.sqlite3
+db.sqlite3
+
+# Archivos de media subidos por usuarios localmente (si los tienes y no quieres versionarlos)
+# media/  (Descomenta si tienes una carpeta 'media' en la raíz y la usas para desarrollo)
+
+# Archivos de static generados localmente por collectstatic (no deben ir al repo, se generan en el servidor)
+# staticfiles/ (Descomenta si ejecutas collectstatic localmente y no quieres subir esa carpeta)
+# Nota: Es mejor no ejecutar collectstatic localmente y subirlo, sino que se ejecute en el servidor.
+# Lo que sí quieres versionar son tus archivos estáticos fuente, ej. canchas/static/
+
+# Logs de Django
+*.log
+logs/
+
+# Entornos Virtuales
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+entorno/  # Para tu caso específico
+
+# Archivos de configuración local (si usas un archivo .env para variables de entorno)
+.env.*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+nbproject/
+*.swp
+*~
+*.bak
+*.orig
+
+# Sass cache
+.sass-cache/
+
+# Node.js (si usas herramientas frontend que generen esto)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json # A veces se incluye, a veces no. Si todos los devs usan la misma versión de npm/yarn, puede ser útil incluirlo.
+yarn.lock         # Similar a package-lock.json para Yarn.
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Archivos comprimidos generados localmente
+*.zip
+*.tar.gz
+*.rar
