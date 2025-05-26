@@ -3,9 +3,36 @@
 
 {% block title %}Lista de Canchas{% endblock %}
 
+{% block extrastyles %} {# Bloque para CSS adicional en base.html si lo tienes #}
+<style>
+  /* Estilos para los botones de acción en móviles */
+  @media (max-width: 767.98px) { /* Bootstrap md breakpoint es 768px, esto es para < md */
+    .btn-accion-movil.btn-info,
+    .btn-accion-movil.btn-warning,
+    .btn-accion-movil.btn-danger {
+      background-color: transparent !important; /* Sin color de fondo */
+      border-color: #6c757d !important;       /* Un borde sutil, color secundario de Bootstrap */
+      color: #212529 !important;             /* Color de texto oscuro, principal de Bootstrap */
+      padding-left: 0.5rem !important;       /* Ajustar padding si es necesario */
+      padding-right: 0.5rem !important;
+    }
+
+    /* Asegurar que el icono (si está visible) y el texto tengan el mismo color */
+    .btn-accion-movil.btn-info .fas,
+    .btn-accion-movil.btn-info span,
+    .btn-accion-movil.btn-warning .fas,
+    .btn-accion-movil.btn-warning span,
+    .btn-accion-movil.btn-danger .fas,
+    .btn-accion-movil.btn-danger span {
+      color: #212529 !important; /* Color de texto oscuro */
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
   <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-sm-center mb-3">
-    <h1 class="mb-2 mb-sm-0 h3 h2-sm">Lista de Canchas</h1> {# Título un poco más pequeño en móvil #}
+    <h1 class="mb-2 mb-sm-0 h3 h2-sm">Lista de Canchas</h1>
     <a href="{% url 'cancha-create' %}" class="btn btn-success w-100 w-sm-auto">Nueva Cancha</a>
   </div>
 
@@ -16,11 +43,9 @@
           <tr>
             <th>Nombre</th>
             <th>Deporte</th>
-            {# En pantallas medianas (md) y mayores, se muestra esta columna #}
-            {# En pantallas pequeñas (sm) y extra pequeñas (xs), se oculta #}
             <th class="d-none d-md-table-cell">Ubicación</th>
             <th>Estado</th>
-            <th class="text-center text-md-start">Acciones</th> {# Centrado en móvil, a la izquierda en desktop #}
+            <th class="text-center text-md-start">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -28,7 +53,6 @@
             <tr>
               <td>{{ cancha.nombre }}</td>
               <td>{{ cancha.get_tipo_deporte_display }}</td>
-              {# Celda correspondiente a la columna Ubicación, se oculta/muestra igual que el th #}
               <td class="d-none d-md-table-cell">{{ cancha.ubicacion|default:"-" }}</td>
               <td>
                 {% if cancha.esta_activa %}
@@ -38,20 +62,19 @@
                 {% endif %}
               </td>
               <td>
-                {# Contenedor de acciones: se apilan en móvil, en fila en desktop #}
-                {# w-100 en móvil para que los botones ocupen el ancho y se vean más grandes #}
                 <div class="d-flex flex-column flex-md-row gap-1 justify-content-center justify-content-md-start">
-                  <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-info btn-sm w-100 w-md-auto">
-                    <i class="fas fa-eye d-md-none"></i> {# Icono solo visible ANTES de 'md' #}
-                    <span class="d-none d-md-inline">Ver/Horarios</span> {# Texto solo visible DESDE 'md' #}
+                  {# Modificación aquí: añadida clase "btn-accion-movil" y span siempre visible #}
+                  <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-info btn-sm w-100 w-md-auto btn-accion-movil">
+                    <i class="fas fa-eye me-1 d-md-none"></i> {# Icono solo visible ANTES de 'md', con margen si el texto está #}
+                    <span>Ver/Horarios</span> {# Texto siempre visible #}
                   </a>
-                  <a href="{% url 'cancha-update' cancha.pk %}" class="btn btn-warning btn-sm w-100 w-md-auto">
-                    <i class="fas fa-edit d-md-none"></i>
-                    <span class="d-none d-md-inline">Editar</span>
+                  <a href="{% url 'cancha-update' cancha.pk %}" class="btn btn-warning btn-sm w-100 w-md-auto btn-accion-movil">
+                    <i class="fas fa-edit me-1 d-md-none"></i>
+                    <span>Editar</span>
                   </a>
-                  <a href="{% url 'cancha-delete' cancha.pk %}" class="btn btn-danger btn-sm w-100 w-md-auto">
-                    <i class="fas fa-trash d-md-none"></i>
-                    <span class="d-none d-md-inline">Eliminar</span>
+                  <a href="{% url 'cancha-delete' cancha.pk %}" class="btn btn-danger btn-sm w-100 w-md-auto btn-accion-movil">
+                    <i class="fas fa-trash me-1 d-md-none"></i>
+                    <span>Eliminar</span>
                   </a>
                 </div>
               </td>
