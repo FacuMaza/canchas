@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirmar Eliminación{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="alert alert-danger">
+        <h4 class="alert-heading">{{ titulo_pagina }}</h4>
+        <p>¿Estás seguro de que quieres eliminar permanentemente el picadito:</p>
+        <p class="mb-0"><strong>"{{ picadito.nombre }}" del {{ picadito.fecha|date:"d/m/Y" }}</strong>?</p>
+        <hr>
+        <p class="mb-0">Esta acción también eliminará a los <strong>{{ picadito.cantidad_participantes }} participantes</strong> asociados y sus consumos registrados. <strong>Esta acción no se puede deshacer.</strong></p>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+            <i class="fas fa-trash-alt me-1"></i> Sí, Eliminar Definitivamente
+        </button>
+        {# Botón para volver al detalle o a la lista #}
+        <a href="{{ request.META.HTTP_REFERER|default:request.build_absolute_uri }}" class="btn btn-secondary">
+             <i class="fas fa-ban me-1"></i> Cancelar
+        </a>
+         {# O un enlace fijo a la lista si prefieres:
+         <a href="{% url 'picadito-list' %}" class="btn btn-secondary">Cancelar</a>
+         #}
+    </form>
+</div>
+{% endblock %}

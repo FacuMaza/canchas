@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %} {# Asume titulo_pagina es texto plano #}
+
+{% block content %}
+  <h1>{{ titulo_pagina }}</h1> {# Asume titulo_pagina es texto plano #}
+
+  <div class="alert alert-danger" role="alert">
+    <h4 class="alert-heading">¡Atención!</h4>
+    <p>Estás a punto de eliminar permanentemente la cancha <strong>"{{ cancha.nombre }}"</strong>.</p>
+    <p>Todos los horarios asociados a esta cancha también serán eliminados.</p>
+    <hr>
+    <p class="mb-0">¿Estás seguro de que deseas continuar?</p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sí, eliminar cancha</button>
+    <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+{% endblock %}

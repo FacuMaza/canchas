@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ titulo|default:"Registrar Movimiento Rápido" }}{% endblock %}
+
+{% block content %}
+  <h2>{{ titulo|default:"Registrar Movimiento Rápido" }}</h2>
+  <hr>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit" class="btn btn-primary">Guardar Movimiento</button>
+    <a href="{% url 'movimientos-list' %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Ya no necesitamos controlar la visibilidad de categoría ni método de pago
+      // Este script ahora está vacío, podrías eliminarlo si no tienes otra lógica JS aquí.
+      // Si tuvieras lógica para ocultar/mostrar producto/cantidad según el tipo, iría aquí.
+      // Por ejemplo:
+      /*
+      const tipoRadios = document.querySelectorAll('input[name="tipo"]');
+      const extraField = document.querySelector('#div_id_extra');
+      const cantidadField = document.querySelector('#div_id_cantidad');
+
+      function toggleProductFields() {
+        const selectedType = document.querySelector('input[name="tipo"]:checked').value;
+        const showProduct = (selectedType === 'egreso'); // O la lógica que decidas
+
+        if (extraField) extraField.style.display = showProduct ? '' : 'none';
+        if (cantidadField) cantidadField.style.display = showProduct ? '' : 'none';
+      }
+
+      tipoRadios.forEach(radio => {
+        radio.addEventListener('change', toggleProductFields);
+      });
+
+      toggleProductFields(); // Llamar al inicio
+      */
+    });
+  </script>
+{% endblock %}

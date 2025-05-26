@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Historial / Balance{% endblock %}
+
+{% block content %}
+  <h1>Historial / Balance</h1>
+  <p>Mostrando resumen para el día: <strong>{{ fecha_inicio|date:"l, d \d\e F \d\e Y" }}</strong></p>
+
+  <!-- Botón para ver historiales detallados -->
+  <div class="mb-3">
+    <a href="{% url 'resumenes-view' %}" class="btn btn-primary">Ver Historiales (Diario, Mensual, Anual)</a>
+  </div>
+
+  <div class="row mb-4">
+      <div class="col-md-4">
+          <div class="card text-white bg-success mb-3">
+              <div class="card-header">Total Ingresos</div>
+              <div class="card-body">
+                  <h5 class="card-title">${{ total_ingresos|floatformat:2|intcomma }}</h5>
+              </div>
+          </div>
+      </div>
+      <div class="col-md-4">
+          <div class="card text-white bg-danger mb-3">
+              <div class="card-header">Total Egresos</div>
+              <div class="card-body">
+                  <h5 class="card-title">${{ total_egresos|floatformat:2|intcomma }}</h5>
+              </div>
+          </div>
+      </div>
+      <div class="col-md-4">
+          <div class="card {% if balance >= 0 %}bg-primary{% else %}bg-warning text-dark{% endif %} mb-3">
+              <div class="card-header">Balance</div>
+              <div class="card-body">
+                  <h5 class="card-title">${{ balance|floatformat:2|intcomma }}</h5>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <div class="row">
+      <div class="col-md-6">
+          <h2>Últimos Ingresos</h2>
+          <a href="{% url 'ingreso-create' %}" class="btn btn-sm btn-success mb-2">Nuevo Ingreso</a>
+          <div class="table-responsive">
+              <table class="table table-sm table-striped">
+                  <thead><tr><th>Fecha</th><th>Monto</th><th>Descripción</th><th>Reserva</th></tr></thead>
+                  <tbody>
+                      {% for ing in ultimos_ingresos %}
+                      <tr>
+                          <td>{{ ing.fecha|date:"d/m/y" }}</td>
+                          <td>${{ ing.monto|floatformat:2|intcomma }}</td>
+                          <td>{{ ing.descripcion|truncatechars:50 }}</td>
+                          <td>{% if ing.reserva %}#{{ ing.reserva.pk }}{% else %}-{% endif %}</td>
+                      </tr>
+                      {% empty %}
+                      <tr><td colspan="4">Sin ingresos en este período.</td></tr>
+                      {% endfor %}
+                  </tbody>
+              </table>
+          </div>
+          <a href="{% url 'ingreso-list' %}">Ver todos los ingresos...</a>
+      </div>
+      <div class="col-md-6">
+          <h2>Últimos Egresos</h2>
+           <a href="{% url 'egreso-create' %}" class="btn btn-sm btn-danger mb-2">Nuevo Egreso</a>
+          <div class="table-responsive">
+              <table class="table table-sm table-striped">
+                   <thead><tr><th>Fecha</th><th>Monto</th><th>Categoría</th><th>Descripción</th></tr></thead>
+                  <tbody>
+                      {% for egr in ultimos_egresos %}
+                      <tr>
+                          <td>{{ egr.fecha|date:"d/m/y" }}</td>
+                          <td>${{ egr.monto|floatformat:2|intcomma }}</td>
+                          <td>{{ egr.get_categoria_display }}</td>
+                          <td>{{ egr.descripcion|truncatechars:40 }}</td>
+                      </tr>
+                      {% empty %}
+                      <tr><td colspan="4">Sin egresos en este período.</td></tr>
+                      {% endfor %}
+                  </tbody>
+              </table>
+          </div>
+          <a href="{% url 'egreso-list' %}">Ver todos los egresos...</a>
+      </div>
+  </div>
+
+{% endblock %}

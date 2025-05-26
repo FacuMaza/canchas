@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <h2>{{ titulo_pagina }}</h2>
+            <hr>
+            <p>Estás a punto de eliminar permanentemente al usuario:</p>
+            <ul>
+                <li><strong>Usuario:</strong> {{ usuario_a_eliminar.username }}</li>
+                <li><strong>Nombre:</strong> {{ usuario_a_eliminar.get_full_name|default:"(Sin nombre)" }}</li>
+                <li><strong>Email:</strong> {{ usuario_a_eliminar.email|default:"(Sin email)" }}</li>
+            </ul>
+            <p class="text-danger fw-bold">¡Esta acción no se puede deshacer!</p>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                    <a href="{% url 'user-list' %}" class="btn btn-secondary me-md-2">Cancelar</a>
+                    <button type="submit" class="btn btn-danger">Sí, eliminar usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

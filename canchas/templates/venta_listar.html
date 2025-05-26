@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load math_filters %}
+{% block title %}Listar Ventas{% endblock %}
+{% block content %}
+<h1>Ventas Realizadas</h1>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Precio Unitario</th>
+         
+            <th>Fecha</th>
+            <th>Ingreso </th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for venta in ventas %}
+        <tr>
+            <td>{{ venta.extra.nombre }}</td>
+            <td>{{ venta.cantidad }}</td>
+            <td>${{ venta.precio_unitario }}</td>
+     
+            <td>{{ venta.fecha_venta|date:"Y-m-d H:i" }}</td>
+            <td>{{ venta.ingreso|default:"Sin ingreso" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center">No hay ventas registradas.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{% url 'venta_registrar' %}" class="btn btn-primary">Volver</a>
+{% endblock %}

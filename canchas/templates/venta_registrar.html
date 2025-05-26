@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %} {# Asegúrate de cargar static si lo necesitas #}
+
+{% block title %}{% trans "Registrar Venta" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% trans "Registrar Venta" %}</h1>
+
+    <form method="post" id="venta-form" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {# Campo Producto #}
+        <div class="mb-3">
+            <label for="{{ form.extra.id_for_label }}" class="form-label">{{ form.extra.label }}</label>
+            {{ form.extra }} {# Renderiza el <select> #}
+            {% if form.extra.errors %}
+                <div class="invalid-feedback d-block">{{ form.extra.errors|first }}</div>
+            {% endif %}
+            <div class="form-text">Seleccione el producto vendido.</div>
+        </div>
+
+        {# Campo Método de Pago #}
+        <div class="mb-3">
+            <label for="{{ form.metodo_pago.id_for_label }}" class="form-label">{{ form.metodo_pago.label }}</label>
+            {{ form.metodo_pago }}
+            {% if form.metodo_pago.errors %}
+                <div class="invalid-feedback d-block">{{ form.metodo_pago.errors|first }}</div>
+            {% endif %}
+        </div>
+
+        {# Campo Cantidad #}
+        <div class="mb-3">
+            <label for="{{ form.cantidad.id_for_label }}" class="form-label">{{ form.cantidad.label }}</label>
+            {{ form.cantidad }} {# Renderiza el <input type="number"> #}
+            {% if form.cantidad.errors %}
+                 <div class="invalid-feedback d-block">{{ form.cantidad.errors|first }}</div>
+            {% endif %}
+        </div>
+
+        {# Campo Precio Total (calculado por JS) #}
+        <div class="mb-3">
+            <label for="precio_total" class="form-label">{% trans "Precio Total Calculado" %}</label>
+            <div class="input-group">
+                <span class="input-group-text">$</span>
+                 <input type="text" id="precio_total" class="form-control" readonly value="0.00">
+            </div>
+            <div class="form-text">Este valor se calcula automáticamente.</div>
+        </div>
+
+        {# Botones #}
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">{% trans "Registrar Venta" %}</button>
+            <a href="{% url 'venta_listar' %}" class="btn btn-secondary">{% trans "Cancelar" %}</a>
+            <a href="{% url 'venta_listar' %}" class="btn btn-info">{% trans "Historial de Ventas" %}</a>
+        </div>
+
+    </form>
+</div>
+
+{# --- PASO 1: Generar los datos JSON de forma segura --- #}
+{{ extras_precios|json_script:"extras-precios-data" }}
+{# Esto creará un <script id="extras-precios-data" type="application/json">...</script> #}
+
+
+{# --- PASO 2: Script JavaScript que lee los datos del script anterior --- #}
+<script>
+    // 1. Obtener los datos JSON del script generado por Django
+    let extrasPrecios = {}; // Inicializar como objeto vacío
+    try {
+        const jsonDataElement = document.getElementById('extras-precios-data');
+        if (jsonDataElement) {
+            extrasPrecios = JSON.parse(jsonDataElement.textContent);
+            console.log("Precios cargados desde json_script:", extrasPrecios); // DEBUG
+        } else {
+            console.error("Error: Elemento con ID 'extras-precios-data' no encontrado.");
+        }
+    } catch (e) {
+        console.error("Error al parsear JSON desde 'extras-precios-data':", e);
+        // Dejar extrasPrecios como objeto vacío si hay error
+    }
+
+
+    // 2. Referencias a los elementos del DOM (igual que antes)
+    const extraSelect = document.getElementById('{{ form.extra.id_for_label }}');
+    const cantidadInput = document.getElementById('{{ form.cantidad.id_for_label }}');
+    const precioTotalInput = document.getElementById('precio_total');
+
+    // 3. Función para actualizar el precio total (igual que antes, pero ahora usa extrasPrecios parseado de forma segura)
+    function updatePrecioTotal() {
+        if (!extraSelect || !cantidadInput || !precioTotalInput) {
+            console.error("Error: No se encontraron uno o más elementos del formulario (producto, cantidad, precio total).");
+            return;
+        }
+
+        const extraId = extraSelect.value;
+        const cantidadStr = cantidadInput.value;
+        const cantidad = cantidadStr ? parseInt(cantidadStr, 10) : 0;
+
+        if (isNaN(cantidad) || cantidad < 0) {
+             console.warn("Cantidad inválida o negativa:", cantidadStr);
+             precioTotalInput.value = '0.00';
+             return;
+        }
+
+        let precioUnitario = 0.00;
+
+        // Busca el precio en nuestro diccionario JS (que ahora SI es un objeto válido)
+        if (extraId && extrasPrecios.hasOwnProperty(extraId)) {
+            const precioStr = extrasPrecios[extraId];
+            precioUnitario = precioStr ? parseFloat(precioStr) : 0.00;
+            if (isNaN(precioUnitario)) {
+                console.error("Error: El precio obtenido para", extraId, "no es un número válido:", precioStr);
+                precioUnitario = 0.00;
+            }
+        } else if (extraId) {
+             console.warn("Precio Unitario NO encontrado para ID:", extraId);
+        }
+
+        const precioTotal = precioUnitario * cantidad;
+
+        if (!isNaN(precioTotal)) {
+             precioTotalInput.value = precioTotal.toFixed(2);
+        } else {
+             console.error("Error: El cálculo del precio total resultó en NaN");
+             precioTotalInput.value = '0.00';
+        }
+    }
+
+    // 4. Añadir listeners de eventos (igual que antes)
+    document.addEventListener('DOMContentLoaded', () => {
+        if (extraSelect) {
+            extraSelect.addEventListener('change', updatePrecioTotal);
+        } else {
+            console.warn("Elemento select de Producto ('{{ form.extra.id_for_label }}') no encontrado al cargar.");
+        }
+
+        if (cantidadInput) {
+            cantidadInput.addEventListener('input', updatePrecioTotal);
+            cantidadInput.addEventListener('change', updatePrecioTotal);
+        } else {
+             console.warn("Elemento input de Cantidad ('{{ form.cantidad.id_for_label }}') no encontrado al cargar.");
+        }
+
+        console.log("Calculando precio inicial al cargar..."); // DEBUG
+        updatePrecioTotal();
+    });
+</script>
+{% endblock %}

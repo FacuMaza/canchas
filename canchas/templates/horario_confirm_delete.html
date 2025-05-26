@@ -1,0 +1,22 @@
+{% extends 'reservas/base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %} {# Asume titulo_pagina es texto plano #}
+
+{% block content %}
+  <h1>{{ titulo_pagina }}</h1> {# Asume titulo_pagina es texto plano #}
+
+  <div class="alert alert-warning" role="alert">
+    <p>
+    Estás a punto de eliminar el horario del <strong>{{ horario.get_dia_semana_display }}</strong> de <strong>{{ horario.hora_inicio|time:"H:i" }}</strong> a <strong>{{ horario.hora_fin|time:"H:i" }}</strong> para la cancha <strong>"{{ horario.cancha.nombre }}"</strong>.
+    </p>
+    <hr>
+    <p class="mb-0">¿Estás seguro de que deseas continuar?</p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sí, eliminar horario</button>
+    <a href="{% url 'cancha-detail' horario.cancha.pk %}" class="btn btn-secondary">Cancelar</a>
+  </form>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Cargar Stock{% endblock %}
+{% block content %}
+<h1>Cargar Stock</h1>
+<form method="post">
+    {% csrf_token %}
+    <!-- Mostrar errores generales del formulario -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+    <div class="mb-3">
+        <label for="{{ form.extra_nombre.id_for_label }}" class="form-label">Producto</label>
+        {{ form.extra_nombre }}
+        {% if form.extra_nombre.errors %}
+            <div class="text-danger">{{ form.extra_nombre.errors }}</div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="{{ form.extra_precio.id_for_label }}" class="form-label">Precio del Producto</label>
+        {{ form.extra_precio }}
+        {% if form.extra_precio.errors %}
+            <div class="text-danger">{{ form.extra_precio.errors }}</div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="{{ form.cantidad_a_agregar.id_for_label }}" class="form-label">Cantidad a Agregar</label>
+        {{ form.cantidad_a_agregar }}
+        {% if form.cantidad_a_agregar.errors %}
+            <div class="text-danger">{{ form.cantidad_a_agregar.errors }}</div>
+        {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary">Cargar Stock</button>
+    <a href="{% url 'stock_listar' %}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load static %}
+
+{# Cambia el título para reflejar el nuevo contenido #}
+{% block title %}{{ titulo_pagina|default:"Últimos Movimientos" }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+    {# Mensajes Flash #}
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show mt-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {# --- SECCIÓN DE MOVIMIENTOS RECIENTES (AHORA ES LA ÚNICA SECCIÓN) --- #}
+    <div class="row">
+        <div class="col-12"> {# Ocupa todo el ancho #}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                {# Usa el título del contexto #}
+                <h1>Movimientos</h1>
+                {# Botón para ir al formulario de movimiento rápido #}
+                <a href="{% url 'movimiento-rapido-create' %}" class="btn btn-success"> {# Cambiado a success para 'Nuevo' #}
+                    <i class="fas fa-plus"></i> Nuevo Movimiento
+                </a>
+            </div>
+
+            {% if movimientos_recientes %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th class="text-end">Monto</th>
+                            {# Cabecera para 'Detalle' eliminada también si no la usarás #}
+                            {# <th>Detalle</th> #}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in movimientos_recientes %}
+                        <tr class="{% if item.tipo == 'Egreso' %}table-danger{% elif item.tipo == 'Ingreso'%}table-success{% endif %}">
+                            <td>{{ item.objeto.fecha|date:"d/m/Y" }}</td> {# Fecha completa #}
+                            <td>
+                                {% if item.tipo == 'Ingreso' %}
+                                    <span class="badge bg-success">{{ item.tipo }}</span>
+                                {% elif item.tipo == 'Egreso' %}
+                                     <span class="badge bg-danger">{{ item.tipo }}</span>
+                                {% else %}
+                                    {{ item.tipo }}
+                                {% endif %}
+                            </td>
+                            <td>{{ item.objeto.descripcion|default:"-" }}</td>
+                            <td class="text-end fw-bold {% if item.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
+                               ${{ item.objeto.monto|floatformat:2|intcomma }}
+                             </td>
+                             {# Bloque de ejemplo para 'Detalle' eliminado #}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                 {# Enlace opcional para ver el historial completo #}
+                 {% comment %}
+                 <div class="text-center mt-2">
+                    <a href="{% url 'historial-view' %}" class="btn btn-outline-secondary btn-sm">Ver Historial Completo</a>
+                 </div>
+                 {% endcomment %}
+            </div>
+            {% else %}
+            <div class="alert alert-info" role="alert">
+                No hay movimientos rápidos registrados recientemente.
+                <a href="{% url 'movimiento-rapido-create' %}">¡Registra el primero!</a>
+            </div>
+            {% endif %}
+        </div> {# Fin de .col-12 #}
+    </div> {# Fin de .row #}
+
+    {# --- SECCIÓN DE EXTRAS DISPONIBLES (ELIMINADA) --- #}
+    {# Ya no necesitas esta parte #}
+
+</div> {# Fin de .container #}
+{% endblock %}
+
+{% block extra_js %}
+{# Si tenías JS específico para la lista de extras, puedes quitarlo si ya no es necesario #}
+{% endblock %}

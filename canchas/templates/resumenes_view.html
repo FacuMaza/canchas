@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Historiales - Diario, Mensual, Anual{% endblock %}
+
+{% block content %}
+  <h1>Historiales - Resumen Diario, Mensual y Anual</h1>
+  <p>Balance detallado de ingresos y egresos.</p>
+
+  <!-- Botón para volver al historial general -->
+  <div class="mb-4">
+    <a href="{% url 'historial-view' %}" class="btn btn-secondary">Volver a Historial General</a>
+  </div>
+
+  <!-- Resumen Diario -->
+  <div class="mb-5">
+    <h2>Resumen Diario</h2>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover"> {# Añadido table-hover #}
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Ingresos</th>
+            <th>Egresos</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for resumen in res_diarios %}
+            <tr>
+              {# ENLACE DIARIO APLICADO CORRECTAMENTE AQUÍ #}
+              <td>
+                <a href="{% url 'historial-diario-detalle' fecha_str=resumen.fecha|date:'Y-m-d' %}">
+                  {{ resumen.fecha|date:"d/m/Y" }}
+                </a>
+              </td>
+              <td>${{ resumen.total_ingresos|floatformat:2|intcomma }}</td>
+              <td>${{ resumen.total_egresos|floatformat:2|intcomma }}</td>
+              <td class="{% if resumen.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                ${{ resumen.balance|floatformat:2|intcomma }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted">No hay resúmenes diarios registrados.</td> {# Añadido text-center y text-muted #}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Resumen Mensual -->
+  <div class="mb-5">
+    <h2>Resumen Mensual</h2>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover"> {# Añadido table-hover #}
+        <thead>
+          <tr>
+            <th>Mes/Año</th>
+            <th>Ingresos</th>
+            <th>Egresos</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for resumen in res_mensuales %}
+            <tr>
+              {# ENLACE MENSUAL APLICADO AQUÍ #}
+              <td>
+                <a href="{% url 'historial-mensual-detalle' year=resumen.año month=resumen.mes %}">
+                  {{ resumen.mes|stringformat:"02d" }}/{{ resumen.año }} {# Usar 02d para formato MM/YYYY #}
+                </a>
+              </td>
+              <td>${{ resumen.total_ingresos|floatformat:2|intcomma }}</td>
+              <td>${{ resumen.total_egresos|floatformat:2|intcomma }}</td>
+              <td class="{% if resumen.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                ${{ resumen.balance|floatformat:2|intcomma }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted">No hay resúmenes mensuales registrados.</td> {# Añadido text-center y text-muted #}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Resumen Anual -->
+  <div class="mb-5">
+    <h2>Resumen Anual</h2>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover"> {# Añadido table-hover #}
+        <thead>
+          <tr>
+            <th>Año</th>
+            <th>Ingresos</th>
+            <th>Egresos</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {# CORREGIDO: Iterar sobre res_anuales #}
+          {% for resumen in res_anuales %}
+            <tr>
+              {# ENLACE ANUAL APLICADO AQUÍ #}
+              <td>
+                <a href="{% url 'historial-anual-detalle' year=resumen.año %}">
+                  {{ resumen.año }}
+                </a>
+              </td>
+              <td>${{ resumen.total_ingresos|floatformat:2|intcomma }}</td>
+              <td>${{ resumen.total_egresos|floatformat:2|intcomma }}</td>
+              <td class="{% if resumen.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                ${{ resumen.balance|floatformat:2|intcomma }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted">No hay resúmenes anuales registrados.</td> {# Añadido text-center y text-muted #}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+{% endblock %}

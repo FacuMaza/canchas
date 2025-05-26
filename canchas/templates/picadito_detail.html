@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load humanize %} {# Opcional para formatear números #}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ titulo_pagina }}</h1>
+    <hr>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Información General
+        </div>
+        <div class="card-body">
+             <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Nombre:</strong> {{ picadito.nombre }}</p>
+                    <p><strong>Fecha:</strong> {{ picadito.fecha|date:"l, d \d\e F \d\e Y" }}</p>
+                    <p><strong>Hora Inicio:</strong> {{ picadito.hora_inicio|time:"H:i"|default:"No especificada" }}</p>
+                    <p><strong>Cancha:</strong> {{ picadito.cancha.nombre|default:"No asignada" }}</p>
+                </div>
+                <div class="col-md-6">
+                     <p><strong>Notas:</strong></p>
+                     <p>{{ picadito.notas|linebreaksbr|default:"Sin notas." }}</p>
+                </div>
+             </div>
+        </div>
+    </div>
+
+    <h2>Participantes ({{ participantes.count }})</h2>
+    {% if participantes %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre Jugador</th>
+                        <th>Items Consumidos</th>
+                        <th class="text-end">Costo Estimado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participante in participantes %}
+                        <tr>
+                            <td>{{ participante.nombre_jugador }}</td>
+                            <td>
+                                {% if participante.items_consumidos.all %}
+                                    <ul class="list-unstyled mb-0">
+                                        {% for item in participante.items_consumidos.all %}
+                                            {# Aquí podrías añadir lógica para ver si tuvo descuento si lo guardaras #}
+                                            <li>{{ item.nombre }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <span class="text-muted">Ninguno</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">${{ participante.costo_calculado|floatformat:2|intcomma }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="fw-bold table-group-divider">
+                        <td colspan="2" class="text-end">Costo Total Estimado General:</td>
+                        <td class="text-end">${{ costo_total_estimado|floatformat:2|intcomma }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">No hay participantes registrados para este picadito.</div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'picadito-list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Volver a la Lista
+        </a>
+       
+    </div>
+</div>
+{% endblock %}

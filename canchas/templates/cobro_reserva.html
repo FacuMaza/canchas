@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cobrar Reserva: {{ reserva_base.nombre_reserva|default:"Turno Único" }}{% endblock %}
+
+{% block content %}
+  <h1>Registrar Cobro de Reserva</h1>
+
+  <div class="card mb-4">
+      <div class="card-header">
+          Detalles de la Reserva a Cobrar
+      </div>
+      <div class="card-body">
+          <p><strong>Cancha:</strong> {{ reserva_base.cancha.nombre }}</p>
+          <p><strong>Nombre/Descripción:</strong> {{ reserva_base.nombre_reserva|default:"-" }}</p>
+          <p><strong>Tipo:</strong> {{ reserva_base.get_tipo_reserva_origen_display }}</p>
+          <p><strong>Fechas Implicadas:</strong>
+             {% for fecha_imp in fechas_implicadas %}
+                {{ fecha_imp|date:"d/m/Y" }}{% if not forloop.last %}, {% endif %}
+             {% empty %}
+                 {{ reserva_base.fecha|date:"d/m/Y" }}
+             {% endfor %}
+          </p>
+          {# Mostrar los horarios del bloque #}
+          <p><strong>Horarios:</strong>
+             {% with primera_hora=reservas_del_bloque.first.hora_inicio ultima_hora=reservas_del_bloque.last.hora_fin %}
+                 {{ primera_hora|time:"H:i" }} - {{ ultima_hora|time:"H:i" }}
+             {% endwith %}
+             ({{ reservas_del_bloque.count }} turno{{ reservas_del_bloque.count|pluralize:"s" }})
+           </p>
+          <p><strong>Monto Total Sugerido:</strong> ${{ monto_total_sugerido|floatformat:2|default:"0.00" }}</p>
+          {# Aquí podrías listar los turnos individuales si es necesario #}
+      </div>
+  </div>
+
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post">
+      {% csrf_token %}
+
+      <div class="row mb-3">
+          <label for="{{ form.monto.id_for_label }}" class="col-sm-3 col-form-label fw-bold">{{ form.monto.label }}</label>
+          <div class="col-sm-9">
+              {{ form.monto }}
+              {% if form.monto.errors %}
+                  <div class="invalid-feedback d-block">
+                      {{ form.monto.errors|first }}
+                  </div>
+              {% endif %}
+               <small class="form-text text-muted">Ingresa el monto total que se cobró por este bloque de reserva.</small>
+          </div>
+      </div>
+
+       <div class="row mb-3">
+          <label for="{{ form.metodo_pago.id_for_label }}" class="col-sm-3 col-form-label fw-bold">{{ form.metodo_pago.label }}</label>
+          <div class="col-sm-9">
+              {{ form.metodo_pago }}
+              {% if form.metodo_pago.errors %}
+                  <div class="invalid-feedback d-block">
+                      {{ form.metodo_pago.errors|first }}
+                  </div>
+              {% endif %}
+          </div>
+      </div>
+
+       <div class="row mb-3">
+          <label for="{{ form.descripcion_adicional.id_for_label }}" class="col-sm-3 col-form-label fw-bold">{{ form.descripcion_adicional.label }}</label>
+          <div class="col-sm-9">
+              {{ form.descripcion_adicional }}
+              {% if form.descripcion_adicional.errors %}
+                  <div class="invalid-feedback d-block">
+                      {{ form.descripcion_adicional.errors|first }}
+                  </div>
+              {% endif %}
+          </div>
+      </div>
+
+       {# Errores generales del formulario #}
+       {% if form.non_field_errors %}
+         <div class="alert alert-danger">
+            {{ form.non_field_errors|first }}
+         </div>
+       {% endif %}
+
+      <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+          {# Enlace para volver a la vista de reserva donde estaba #}
+          <a href="{% url 'reservar-fecha' cancha_pk=reserva_base.cancha.pk fecha=reserva_base.fecha|date:'Y-m-d' %}" class="btn btn-secondary">Cancelar / Volver</a>
+          <button type="submit" class="btn btn-success">Registrar Pago</button>
+      </div>
+
+      
+
+  </form>
+
+
+{% endblock %}

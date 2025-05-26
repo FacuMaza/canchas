@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Editar Stock{% endblock %}
+{% block content %}
+<h1>Editar Stock</h1>
+<form method="post">
+    {% csrf_token %}
+    <!-- Mostrar errores generales del formulario -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+    <div class="mb-3">
+        <label for="{{ form.extra_nombre.id_for_label }}" class="form-label">Producto</label>
+        {{ form.extra_nombre }}
+        {% if form.extra_nombre.errors %}
+            <div class="text-danger">{{ form.extra_nombre.errors }}</div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="{{ form.extra_precio.id_for_label }}" class="form-label">Precio del Producto</label>
+        {{ form.extra_precio }}
+        {% if form.extra_precio.errors %}
+            <div class="text-danger">{{ form.extra_precio.errors }}</div>
+        {% endif %}
+    </div>
+    <div class="mb-3">
+        <label for="{{ form.cantidad.id_for_label }}" class="form-label">Cantidad en Stock</label>
+        {{ form.cantidad }}
+        {% if form.cantidad.errors %}
+            <div class="text-danger">{{ form.cantidad.errors }}</div>
+        {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+    <a href="{% url 'stock_listar' %}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}

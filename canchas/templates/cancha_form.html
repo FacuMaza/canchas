@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %} {# Asume titulo_pagina es texto plano #}
+
+{% block content %}
+  <h1>{{ titulo_pagina }}</h1> {# Asume titulo_pagina es texto plano #}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% for field in form %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+        {% if field.field.widget.input_type == 'checkbox' %}
+             <div class="form-check">
+                 {{ field }}
+                 <label class="form-check-label" for="{{ field.id_for_label }}">
+                     {{ field.help_text|safe }}
+                 </label>
+             </div>
+        {% else %}
+            {{ field }}
+            {% if field.help_text %}
+              <div class="form-text">{{ field.help_text|safe }}</div>
+            {% endif %}
+        {% endif %}
+
+        {% if field.errors %}
+          <div class="invalid-feedback d-block">
+            {{ field.errors|first }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    {# Estilos básicos para campos (opcional si ya usas clases en forms.py) #}
+    <style>
+       input[type="text"], input[type="email"], input[type="url"], input[type="password"], input[type="number"], input[type="date"], input[type="datetime-local"], input[type="month"], input[type="search"], input[type="tel"], input[type="time"], input[type="week"], textarea, select { display: block; width: 100%; padding: .375rem .75rem; font-size: 1rem; font-weight: 400; line-height: 1.5; color: var(--bs-body-color); background-color: var(--bs-body-bg); background-clip: padding-box; border: var(--bs-border-width) solid var(--bs-border-color); appearance: none; border-radius: var(--bs-border-radius); transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out; }
+       textarea { min-height: calc(1.5em + .75rem + calc(var(--bs-border-width) * 2)); }
+       .form-check-input { float: left; margin-left: -1.5em; }
+       .form-check-label { margin-left: 0.5em;}
+    </style>
+
+    {% if form.non_field_errors %}
+     <div class="alert alert-danger">
+        {{ form.non_field_errors|first }}
+     </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+    {% if cancha %}
+        <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-secondary">Cancelar</a>
+    {% else %}
+         <a href="{% url 'cancha-list' %}" class="btn btn-secondary">Cancelar</a>
+    {% endif %}
+  </form>
+
+{% endblock %}

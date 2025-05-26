@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %} {# Ya que lo usaste en el otro form #}
+
+{% block title %}
+  {% if object %} {# Si estamos editando (object existe) #}
+    Editar Extra: {{ object.nombre }}
+  {% else %} {# Si estamos creando (object no existe) #}
+    Crear Nuevo Extra
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <h2>
+    {% if object %}
+      Editar Extra: {{ object.nombre }}
+    {% else %}
+      Crear Nuevo Extra
+    {% endif %}
+  </h2>
+  <hr>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form|crispy }} {# Usamos crispy para que se vea como tu otro form #}
+    <div class="mt-3"> {# Un poco de margen superior para los botones #}
+      <button type="submit" class="btn btn-primary">
+        {% if object %}
+          Guardar Cambios
+        {% else %}
+          Crear Extra
+        {% endif %}
+      </button>
+      <a href="{% url 'extra-list' %}" class="btn btn-secondary">Cancelar</a> {# Enlace para volver a la lista #}
+    </div>
+  </form>
+{% endblock %}

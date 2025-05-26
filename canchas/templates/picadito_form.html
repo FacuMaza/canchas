@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load i18n %}
+{% load cancha_extras %} {# Necesario para get_item y floatformat #}
+
+{% block title %}{{ titulo_pagina|default:"Registrar Picadito" }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ titulo_pagina|default:"Registrar Nuevo Picadito" }}</h1>
+    <hr>
+
+    {# Mensajes #}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" id="picadito-form" action="">
+        {% csrf_token %}
+
+        {# 1. Formulario Principal (Nombre del Picadito) #}
+        <div class="mb-3 card">
+             <div class="card-header fw-bold">Datos del Picadito</div>
+             <div class="card-body">
+                 {% if form.non_field_errors %}
+                     <div class="alert alert-danger p-2">{{ form.non_field_errors }}</div>
+                 {% endif %}
+                 <div class="mb-3">
+                     <label for="{{ form.nombre.id_for_label }}" class="form-label">{{ form.nombre.label }}</label>
+                     {{ form.nombre }}
+                     {% if form.nombre.help_text %}<div class="form-text">{{ form.nombre.help_text }}</div>{% endif %}
+                     {% if form.nombre.errors %}<div class="invalid-feedback d-block">{{ form.nombre.errors|join:", "}}</div>{% endif %}
+                 </div>
+             </div>
+        </div>
+
+        {# 2. FormSet de Participantes #}
+        <div class="card mt-4">
+            <div class="card-header fw-bold">Participantes</div>
+            <div class="card-body">
+                {{ participantes_formset.management_form }} {# <-- IMPORTANTE: Management Form #}
+
+                {% if participantes_formset.non_form_errors %}
+                    <div class="alert alert-danger p-2">
+                        <strong>Errores generales de participantes:</strong> {{ participantes_formset.non_form_errors }}
+                    </div>
+                {% endif %}
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered" id="participantes-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 20%;">Nombre *</th>
+                                <th style="width: 50%;">Items Consumidos (Marcar y aplicar 50% si corresponde)</th>
+                                <th style="width: 15%;" class="text-end">Costo Cancha ($)</th>
+                                <th style="width: 15%;" class="text-center">Total / Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for form_participante in participantes_formset %}
+                                {% if form_participante.non_field_errors %}
+                                <tr class="table-danger">
+                                    <td colspan="4">
+                                        <div class="alert alert-danger p-1 mb-0">
+                                           Fila {{ forloop.counter }}: {{ form_participante.non_field_errors }}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+
+                                {# Añadir clase para identificar la fila completa #}
+                                <tr class="participante-form-row">
+                                    {# Campos ocultos (incluye ID y items_con_descuento_pks) #}
+                                    {% for hidden_field in form_participante.hidden_fields %}
+                                        {{ hidden_field }}
+                                    {% endfor %}
+
+                                    {# Nombre Jugador #}
+                                    <td class="{% if form_participante.nombre_jugador.errors %}table-danger{% endif %}">
+                                        {{ form_participante.nombre_jugador }}
+                                        {% if form_participante.nombre_jugador.errors %}<div class="text-danger small mt-1">{{ form_participante.nombre_jugador.errors|join:", " }}</div>{% endif %}
+                                    </td>
+
+                                    {# ================================================ #}
+                                    {# CELDA DE ITEMS CONSUMIDOS - CÓDIGO CORREGIDO     #}
+                                    {# ================================================ #}
+                                    <td class="{% if form_participante.items_consumidos.errors %}table-danger{% endif %}">
+                                        <div class="items-consumidos-container small">
+                                            {# Iterar sobre el diccionario de extras activos pasado desde la vista #}
+                                            {% for extra_pk, extra_obj in extras_activos.items %}
+                                                {% if extra_obj %} {# Asegurarse que el objeto exista #}
+                                                    {% with extra_price=extra_obj.precio_actual|default:'0.00' %}
+                                                        <div class="form-check form-check-inline mb-1 d-flex align-items-center">
+                                                            {# Checkbox #}
+                                                            <input class="form-check-input item-consumido-check me-1" type="checkbox"
+                                                                   name="{{ form_participante.prefix }}-items_consumidos" {# Nombre correcto para el formset #}
+                                                                   value="{{ extra_pk }}"
+                                                                   id="id_{{ form_participante.prefix }}-items_consumidos_{{ extra_pk }}" {# ID único usando PK #}
+                                                                   data-price="{{ extra_price }}"
+                                                                   data-extra-pk="{{ extra_pk }}"
+                                                                   {# Comprueba si este PK está en el valor actual del campo del formulario #}
+                                                                   {% with current_values=form_participante.items_consumidos.value|default:'' %}
+                                                                       {% if extra_pk|stringformat:"s" in current_values or extra_pk in current_values %}checked{% endif %}
+                                                                   {% endwith %}>
+                                                            {# Label #}
+                                                            <label class="form-check-label me-2" for="id_{{ form_participante.prefix }}-items_consumidos_{{ extra_pk }}">
+                                                                {{ extra_obj.nombre }} (${{ extra_price|floatformat:2 }})
+                                                            </label>
+                                                            {# Botón Descuento #}
+                                                            <button type="button" class="btn btn-outline-warning btn-sm py-0 px-1 discount-button"
+                                                                    data-extra-pk="{{ extra_pk }}"
+                                                                    title="Aplicar 50% de descuento a este item">
+                                                                50%
+                                                            </button>
+                                                        </div>
+                                                    {% endwith %}
+                                                {% else %}
+                                                    {# Error inesperado si el objeto no está en el diccionario #}
+                                                    <span class="text-warning">Error: Objeto extra no encontrado para PK {{ extra_pk }}</span>
+                                                {% endif %}
+                                            {% empty %}
+                                                {# Mensaje si no hay extras activos #}
+                                                <span class="text-muted fst-italic">No hay items extra activos para seleccionar.</span>
+                                            {% endfor %}
+                                        </div>
+                                        {% if form_participante.items_consumidos.errors %}
+                                            <div class="text-danger small mt-1">{{ form_participante.items_consumidos.errors|join:", " }}</div>
+                                        {% endif %}
+                                    </td>
+                                    {# ================================================ #}
+                                    {# FIN DE LA CELDA DE ITEMS CONSUMIDOS             #}
+                                    {# ================================================ #}
+
+
+                                    {# Costo Cancha #}
+                                    <td class="text-end {% if form_participante.costo_cancha.errors %}table-danger{% endif %}">
+                                        {{ form_participante.costo_cancha }}
+                                         {% if form_participante.costo_cancha.errors %}<div class="text-danger small mt-1">{{ form_participante.costo_cancha.errors|join:", " }}</div>{% endif %}
+                                    </td>
+
+                                    {# Columna Total / Acciones #}
+                                    <td class="text-center align-middle {% if form_participante.DELETE.errors %}table-danger{% endif %}">
+                                         {# Span para mostrar el Total #}
+                                        <div class="fw-bold mb-1">
+                                            Total: $<span class="participant-total">0.00</span>
+                                        </div>
+                                        {# Checkbox Eliminar (si aplica) #}
+                                        {% if form_participante.instance.pk and participantes_formset.can_delete %}
+                                            <div class="form-check d-inline-block" title="Marcar para eliminar">
+                                                {{ form_participante.DELETE }}
+                                                <label for="{{ form_participante.DELETE.id_for_label }}" class="form-check-label small">Del</label>
+                                            </div>
+                                        {% elif not form_participante.instance.pk %}
+                                             {# Espacio reservado o guión si es un form nuevo #}
+                                             <span class="text-muted">--</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {# Botones de Acción #}
+        <div class="mt-4 d-flex justify-content-end">
+            <a href="{% url 'picadito-list' %}" class="btn btn-secondary me-2">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+                 <i class="fas fa-save me-1"></i> Guardar Picadito y Participantes
+            </button>
+        </div>
+    </form>
+
+</div> {# Fin container #}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tableBody = document.getElementById('participantes-table')?.querySelector('tbody');
+
+    if (!tableBody) {
+        console.error("Error: No se encontró el tbody de la tabla #participantes-table");
+        return; // Salir si no se encuentra la tabla
+    }
+
+    // --- Función para actualizar el campo oculto de descuentos ---
+    function updateHiddenDiscountField(row) {
+        const hiddenInput = row.querySelector('input[name$="-items_con_descuento_pks"]'); // Selector más específico
+        if (!hiddenInput) {
+            // console.warn(`Row ${row.rowIndex}: No se encontró input oculto de descuento.`);
+            return;
+        }
+
+        const discountedPks = [];
+        row.querySelectorAll('.discount-button.active').forEach(button => {
+            discountedPks.push(button.dataset.extraPk);
+        });
+        hiddenInput.value = discountedPks.join(',');
+        // console.log(`Row ${row.rowIndex}: Hidden field updated to: ${hiddenInput.value}`);
+    }
+
+    // --- Función para calcular el total de un participante ---
+    function calculateParticipantTotal(row) {
+        let itemsTotal = 0;
+        const costoCanchaInput = row.querySelector('.costo-cancha-input');
+        const totalDisplay = row.querySelector('.participant-total');
+
+        // 1. Obtener costo de cancha
+        const costoCancha = parseFloat(costoCanchaInput?.value) || 0;
+
+        // 2. Iterar sobre items consumidos CHEQUEADOS en esta fila
+        row.querySelectorAll('.item-consumido-check:checked').forEach(checkbox => {
+            const price = parseFloat(checkbox.dataset.price) || 0;
+            const extraPk = checkbox.dataset.extraPk;
+            // Buscar el botón de descuento correspondiente EN LA MISMA FILA
+            const discountButton = row.querySelector(`.discount-button[data-extra-pk="${extraPk}"]`);
+            const isDiscounted = discountButton && discountButton.classList.contains('active');
+
+            itemsTotal += isDiscounted ? (price / 2) : price;
+        });
+
+        // 3. Calcular total final y mostrar
+        const finalTotal = costoCancha + itemsTotal;
+        if (totalDisplay) {
+            totalDisplay.textContent = finalTotal.toFixed(2);
+        }
+        // console.log(`Row ${row.rowIndex}: Cancha=${costoCancha.toFixed(2)}, Items=${itemsTotal.toFixed(2)}, Total=${finalTotal.toFixed(2)}`);
+    }
+
+    // --- Event Listeners (Usando Delegación en el tbody) ---
+    tableBody.addEventListener('click', function(event) {
+        const target = event.target;
+        const row = target.closest('.participante-form-row'); // Encuentra la fila del evento
+
+        if (!row) return; // Si el clic no fue dentro de una fila de participante
+
+        // 1. Clic en botón de descuento
+        if (target.classList.contains('discount-button')) {
+            event.preventDefault();
+            const button = target;
+            const extraPk = button.dataset.extraPk;
+            const correspondingCheckbox = row.querySelector(`.item-consumido-check[data-extra-pk="${extraPk}"]`);
+
+            if (correspondingCheckbox && correspondingCheckbox.checked) {
+                 button.classList.toggle('active');
+                 button.classList.toggle('btn-warning');
+                 button.classList.toggle('btn-outline-warning');
+            } else {
+                 button.classList.remove('active', 'btn-warning');
+                 button.classList.add('btn-outline-warning');
+            }
+
+            updateHiddenDiscountField(row);
+            calculateParticipantTotal(row);
+        }
+
+        // 2. Clic en checkbox de item consumido
+        else if (target.classList.contains('item-consumido-check')) {
+            const checkbox = target;
+            const extraPk = checkbox.dataset.extraPk;
+            const discountButton = row.querySelector(`.discount-button[data-extra-pk="${extraPk}"]`);
+
+            if (!checkbox.checked && discountButton) {
+                 discountButton.classList.remove('active', 'btn-warning');
+                 discountButton.classList.add('btn-outline-warning');
+            }
+            updateHiddenDiscountField(row);
+            calculateParticipantTotal(row);
+        }
+    });
+
+    // 3. Cambios en input de costo de cancha
+    tableBody.addEventListener('input', function(event) {
+        const target = event.target;
+        if (target.classList.contains('costo-cancha-input')) {
+            const row = target.closest('.participante-form-row');
+            if (row) {
+                calculateParticipantTotal(row);
+            }
+        }
+    });
+
+    // --- Calcular totales iniciales al cargar la página ---
+    tableBody.querySelectorAll('.participante-form-row').forEach(row => {
+        // Marcar visualmente botones de descuento si vienen pre-seleccionados
+        const hiddenInput = row.querySelector('input[name$="-items_con_descuento_pks"]');
+        if (hiddenInput && hiddenInput.value) {
+            const pks = hiddenInput.value.split(',');
+            pks.forEach(pk => {
+                if (!pk) return; // Evitar pks vacíos si la cadena es "" o tiene comas extra
+                const button = row.querySelector(`.discount-button[data-extra-pk="${pk}"]`);
+                const checkbox = row.querySelector(`.item-consumido-check[data-extra-pk="${pk}"]`);
+                if (button && checkbox && checkbox.checked) {
+                    button.classList.add('active', 'btn-warning');
+                    button.classList.remove('btn-outline-warning');
+                }
+            });
+        }
+        // Calcular total inicial para la fila
+        calculateParticipantTotal(row);
+    });
+
+    console.log("Picadito form JS loaded and initialized.");
+});
+</script>
+{% endblock %}
