@@ -1,0 +1,87 @@
+/* static/css/forms.css */
+
+/* --- Definición de Variable (Repetida para asegurar disponibilidad) --- */
+:root {
+    /* === ¡¡¡ATENCIÓN CRÍTICA!!! === */
+    /* Reemplaza '56px' con la altura EXACTA de tu navbar fixed-top */
+    /* ¡Mídela cp   on las herramientas de desarrollador (F12)! */
+    /* Este valor DEBE ser el mismo que en base.html */
+    --navbar-height: 56px; /* <--- ¡¡¡AJUSTA ESTE VALOR!!! */
+}
+
+/* --- Estilos para el Wrapper del Login --- */
+.login-container-wrapper {
+    display: flex;
+    flex-direction: column;     
+    align-items: center;       
+    justify-content: center;   
+    min-height: calc(100vh - var(--navbar-height));
+    
+    /* Padding modificado para "subir" el contenido */
+    padding-top: 1.5rem; /* Mantenemos padding superior */
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-bottom: 70rem; /* <--- AÑADIDO/AUMENTADO: Empuja el contenido hacia arriba. ¡AJUSTA ESTE VALOR! */
+    
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* Estilos específicos para la columna Bootstrap que contiene la card de login */
+.login-container-wrapper > .col-md-7,
+.login-container-wrapper > .col-lg-5,
+.login-container-wrapper > .col-xl-4 { /* Asegura aplicar a todas las clases de columna usadas */
+    margin: 0; /* Elimina márgenes externos que podrían interferir */
+    /* Mantiene el padding lateral de Bootstrap si se desea, ajusta si no */
+    padding-left: var(--bs-gutter-x, .75rem);
+    padding-right: var(--bs-gutter-x, .75rem);
+    width: 100%; /* Asegura que use el ancho completo definido por las clases col-* */
+}
+
+
+/* Estilos para la card dentro del wrapper */
+.login-container-wrapper .card {
+    width: 100%;      /* La card ocupa todo el ancho de su columna padre */
+    max-width: 450px; /* <--- AJUSTA ESTE VALOR al ancho máximo deseado */
+    margin-left: auto; /* Necesario para centrar la card si max-width es menor que la columna */
+    margin-right: auto;/* Necesario para centrar la card si max-width es menor que la columna */
+
+}
+
+/* --- Estilos existentes para .horario-form-styles (si los necesitas) --- */
+.horario-form-styles select,
+.horario-form-styles input[type="time"] {
+    display: block;
+    width: 100%;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--bs-body-color);
+    background-color: var(--bs-body-bg);
+    background-clip: padding-box;
+    border: var(--bs-border-width) solid var(--bs-border-color);
+    appearance: none;
+    border-radius: var(--bs-border-radius);
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+/* --- Estilos Bootstrap para validación (si no se cargan globalmente) --- */
+/* Asegúrate de que estas clases estén disponibles si las usas */
+.is-invalid {
+    border-color: #dc3545; /* Color de borde de error de Bootstrap */
+}
+.invalid-feedback {
+    display: none; /* Oculto por defecto */
+    width: 100%;
+    margin-top: .25rem;
+    font-size: .875em;
+    color: #dc3545; /* Color de texto de error de Bootstrap */
+}
+.is-invalid ~ .invalid-feedback,
+.is-invalid ~ .form-text + .invalid-feedback { /* Asegura que se muestre el feedback */
+    display: block;
+}
+.invalid-feedback.d-block { /* Para forzar la visualización desde el template */
+    display: block !important;
+}

@@ -10,9 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+# BASE_DIR apunta a C:\viejopadel\config\
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -23,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-8ph(t+8uc@+as)%adyul!&c^s)1ywu7b$7(b2ubarf-sh3g21z'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = False # Has puesto False, lo cual es correcto para producción
 
 ALLOWED_HOSTS = ['*']
 
@@ -36,7 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    'django.contrib.staticfiles', # Asegúrate que está aquí
     'django.contrib.humanize',
     'crispy_forms',
     'crispy_bootstrap5',
@@ -58,7 +60,10 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            # Si tuvieras una carpeta 'templates' a nivel de proyecto (C:\viejopadel\config\templates)
+            # la añadirías aquí: BASE_DIR / "templates"
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -118,12 +123,30 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = 'static/' # URL para acceder a los archivos estáticos en el navegador
+
+# ------------ MODIFICACIÓN IMPORTANTE AQUÍ ------------
+# Directorio donde `collectstatic` copiará todos los archivos estáticos para producción.
+# DEBE ser una ruta absoluta a una carpeta que NO esté ya en STATICFILES_DIRS.
+# Django creará esta carpeta si no existe.
+# Con tu BASE_DIR, esto será: C:\viejopadel\config\staticfiles\
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Opcional: Lista de directorios donde Django buscará archivos estáticos
+# además de la carpeta 'static' de cada app.
+# Si tienes una carpeta 'static' a nivel de proyecto (ej: C:\viejopadel\config\static\)
+# la añades aquí.
+STATICFILES_DIRS = [
+    # BASE_DIR / "static", # Descomenta y crea esta carpeta si tienes archivos estáticos globales.
+                           # Por ejemplo: C:\viejopadel\config\static\
+                           # La app 'canchas' tiene 'canchas/static/', que ya es encontrada.
+]
+# ------------ FIN DE LA MODIFICACIÓN IMPORTANTE ------------
+
+# MEDIA_ROOT = os.path.join(BASE_DIR, 'static') # Esta línea era incorrecta para MEDIA_ROOT y redundante, la elimino.
 
 LOGIN_URL = 'login'
-
 LOGIN_REDIRECT_URL = 'cancha-list'
-
 LOGOUT_REDIRECT_URL = 'login'
 
 # Default primary key field type
@@ -134,3 +157,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+
+# Media files (Archivos subidos por el usuario)
+MEDIA_URL = '/media/'
+# Con tu BASE_DIR, esto será: C:\viejopadel\config\mediafiles\
+MEDIA_ROOT = BASE_DIR / "mediafiles"
