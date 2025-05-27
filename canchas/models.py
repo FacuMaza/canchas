@@ -111,19 +111,50 @@ class HorarioDisponible(models.Model):
         if self.hora_inicio and self.hora_fin and self.hora_inicio >= self.hora_fin:
             raise ValidationError(_('La hora de inicio debe ser anterior a la hora de fin.'))
 
-class Reserva(models.Model):
-    ESTADO_CHOICES = [('confirmada', 'Confirmada'), ('pendiente', 'Pendiente'), ('cancelada', 'Cancelada')]
-    TIPO_RESERVA_ORIGEN_CHOICES = [('unico', 'Único'), ('mensual', 'Mensual')]
 
-    cancha = models.ForeignKey(Cancha, on_delete=models.CASCADE, related_name='reservas', verbose_name="Cancha")
+
+
+
+
+
+class Reserva(models.Model):
+    # --- MODIFICADO ---
+    ESTADO_CHOICES = [
+        ('confirmada', 'Confirmada'),       # Pagada o reserva mensual/bloque
+        ('pendiente_pago', 'Pendiente de Pago'), # Reservado diario, aún no pagado
+        ('pendiente', 'Pendiente'),         # Estado original, revisar su uso si ya no es necesario
+        ('cancelada', 'Cancelada')
+    ]
+    TIPO_RESERVA_ORIGEN_CHOICES = [
+        ('diario', 'Diario'),    # Cambiado de 'unico'
+        ('mensual', 'Mensual')
+    ]
+    # --- FIN MODIFICADO ---
+
+    cancha = models.ForeignKey('Cancha', on_delete=models.CASCADE, related_name='reservas', verbose_name="Cancha") # Asumiendo que Cancha está definida en este archivo
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservas', verbose_name="Usuario")
     fecha = models.DateField("Fecha de la Reserva")
     hora_inicio = models.TimeField("Hora de Inicio")
     hora_fin = models.TimeField("Hora de Fin")
-    estado = models.CharField("Estado", max_length=20, choices=ESTADO_CHOICES, default='confirmada') # Mantenemos confirmada por ahora
+    
+    # --- MODIFICADO ---
+    estado = models.CharField(
+        "Estado",
+        max_length=20, # Ajustar si 'pendiente_pago' es más largo que los anteriores
+        choices=ESTADO_CHOICES,
+        default='confirmada' # El default se maneja mejor en la vista al crear.
+                             # 'confirmada' puede ser un default seguro si no se especifica.
+    )
+    tipo_reserva_origen = models.CharField(
+        "Tipo Origen",
+        max_length=10, # 'diario' y 'mensual' caben
+        choices=TIPO_RESERVA_ORIGEN_CHOICES,
+        default='diario' # Cambiado de 'unico'
+    )
+    # --- FIN MODIFICADO ---
+
     fecha_creacion = models.DateTimeField("Fecha de Creación", auto_now_add=True)
     nombre_reserva = models.CharField("Nombre Reserva", max_length=100, blank=True, null=True)
-    tipo_reserva_origen = models.CharField("Tipo Origen", max_length=10, choices=TIPO_RESERVA_ORIGEN_CHOICES, default='unico')
     precio_reserva = models.DecimalField(
         "Precio de la Reserva", max_digits=10, decimal_places=2,
         null=True, blank=True, help_text="Precio cobrado por este turno específico (sin extras)."
@@ -131,31 +162,37 @@ class Reserva(models.Model):
     notas_internas = models.TextField("Notas Internas (Admin)", blank=True, null=True)
 
     class Meta:
-        verbose_name = "Reserva"; verbose_name_plural = "Reservas"
-        unique_together = ('cancha', 'fecha', 'hora_inicio')
+        verbose_name = "Reserva"
+        verbose_name_plural = "Reservas"
+        unique_together = ('cancha', 'fecha', 'hora_inicio') # Esto previene duplicados exactos a nivel DB
         ordering = ['fecha', 'hora_inicio']
 
     def __str__(self):
         user_str = self.usuario.username if self.usuario else "Sin usuario"
+        # Asegurarse de que el método get_tipo_reserva_origen_display exista y funcione con 'diario'
         tipo_str = f" ({self.get_tipo_reserva_origen_display()})" if hasattr(self, 'get_tipo_reserva_origen_display') else ""
         nombre_str = f" '{self.nombre_reserva}'" if self.nombre_reserva else ""
-        precio_str = f" - ${self.precio_reserva}" if self.precio_reserva else ""
-        return f"Reserva: {self.cancha.nombre} - {self.fecha.strftime('%Y-%m-%d')} {self.hora_inicio.strftime('%H:%M')}{nombre_str}{tipo_str}{precio_str} ({user_str})"
+        precio_str = f" - ${self.precio_reserva}" if self.precio_reserva is not None else ""
+        estado_display_str = f" [{self.get_estado_display()}]" if hasattr(self, 'get_estado_display') else "" # Añadir estado al __str__
+        return f"Reserva: {self.cancha.nombre} - {self.fecha.strftime('%Y-%m-%d')} {self.hora_inicio.strftime('%H:%M')}{nombre_str}{tipo_str}{precio_str} ({user_str}){estado_display_str}"
 
-    # --- MÉTODO SAVE SIN CREACIÓN DE INGRESO ---
+
     def save(self, *args, **kwargs):
         # Lógica opcional para asignar precio si no se proporcionó
         if self.precio_reserva is None:
              # ¡¡¡IMPORTANTE: Ajusta tu lógica de cálculo de precio aquí!!!
+             # Por ejemplo, podrías tener un método en el modelo Cancha o una tabla de precios.
              precio_calculado = Decimal('1500.00') # ¡¡¡REEMPLAZAR ESTE VALOR!!!
              self.precio_reserva = precio_calculado
         # Guarda la reserva normalmente
         super().save(*args, **kwargs)
 
-    # clean() sin cambios necesarios aquí
     def clean(self):
+        # Validación para asegurar que la hora de inicio sea antes que la hora de fin
         if self.hora_inicio and self.hora_fin and self.hora_inicio >= self.hora_fin:
-             raise ValidationError('La hora de inicio debe ser anterior a la hora de fin.')
+             raise ValidationError(_('La hora de inicio debe ser anterior a la hora de fin.'))
+        # La validación de conflictos de solapamiento es mejor manejarla en la vista para dar feedback al usuario
+        # antes de intentar guardar, aunque unique_together ya protege la BD.
         
 
 

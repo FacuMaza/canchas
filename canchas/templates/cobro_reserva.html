@@ -28,8 +28,6 @@
              {% endwith %}
              ({{ reservas_del_bloque.count }} turno{{ reservas_del_bloque.count|pluralize:"s" }})
            </p>
-          <p><strong>Monto Total Sugerido:</strong> ${{ monto_total_sugerido|floatformat:2|default:"0.00" }}</p>
-          {# Aquí podrías listar los turnos individuales si es necesario #}
       </div>
   </div>
 

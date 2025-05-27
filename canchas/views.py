@@ -420,21 +420,27 @@ class HorarioDisponibleDeleteView(SuccessMessageMixin, DeleteView):
 
 
 class ReservarFechaView(View):
-    template_name = 'reservar_fecha.html'
+    template_name = 'reservar_fecha.html' # Asegúrate que el nombre del template coincida
 
     def get(self, request, cancha_pk, fecha):
         cancha = get_object_or_404(Cancha, pk=cancha_pk)
         try:
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
-            messages.error(request, "Formato inválido.")
-            return redirect('cancha-detail', pk=cancha_pk)
+            messages.error(request, "Formato de fecha inválido.")
+            return redirect('cancha-detail', pk=cancha_pk) # Asume que tienes esta URL
+
         if fecha_obj < timezone.localdate():
-            messages.warning(request, "Fecha pasada.")
+            messages.warning(request, "No puedes ver/reservar en una fecha pasada desde aquí.")
             return redirect('cancha-detail', pk=cancha_pk)
 
         slots = self._generar_slots_lee_tipo_origen(cancha, fecha_obj)
-        context = {'cancha': cancha, 'fecha_seleccionada': fecha_obj, 'fecha_str': fecha, 'slots': slots}
+        context = {
+            'cancha': cancha,
+            'fecha_seleccionada': fecha_obj,
+            'fecha_str': fecha, # pasar fecha_str para URLs del formulario
+            'slots': slots
+        }
         return render(request, self.template_name, context)
 
     def post(self, request, cancha_pk, fecha):
@@ -442,179 +448,263 @@ class ReservarFechaView(View):
         try:
             fecha_base = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
-            messages.error(request, "Formato inválido.")
+            messages.error(request, "Formato de fecha inválido.")
             return redirect('cancha-detail', pk=cancha_pk)
 
-        reservas_creadas_obj = []  # Guardaremos los objetos Reserva creados
-        reservas_fallidas_total = 0
+        # Validar fecha base antes de continuar
+        if fecha_base < timezone.localdate():
+            messages.error(request, "No puedes reservar en una fecha pasada.")
+            slots = self._generar_slots_lee_tipo_origen(cancha, fecha_base) # Regenerar slots para el contexto
+            context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': slots}
+            return render(request, self.template_name, context)
+
+        reservas_creadas_obj = []
+        # reservas_fallidas_total = 0 # No se usa explicitamente en el flujo de mensajes final
         errores_globales = []
         slots_seleccionados_str = request.POST.getlist('slot_reservar')
         descripcion_bloque = request.POST.get('nombre_reserva_bloque', '').strip()
-        tipo_reserva_seleccionado = request.POST.get('tipo_reserva', 'unico')
+        tipo_reserva_seleccionado = request.POST.get('tipo_reserva', 'diario') # Default a 'diario'
 
-        # Validaciones iniciales
+        # --- VALIDACIONES INICIALES ---
         if not slots_seleccionados_str:
-            messages.warning(request, "No seleccionaste horarios.")
+            messages.warning(request, "No seleccionaste ningún horario.")
             context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
             return render(request, self.template_name, context)
         if not descripcion_bloque:
-            messages.error(request, "Ingresa nombre/descripción.")
+            messages.error(request, "Por favor, ingresa un nombre o descripción para la reserva.")
             context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
             return render(request, self.template_name, context)
 
         slots_seleccionados_time = []
         try:
-            for hora_str in slots_seleccionados_str:
-                slots_seleccionados_time.append(datetime.strptime(hora_str, '%H:%M').time())
+            for hora_str_seleccionada in slots_seleccionados_str: # Renombrar para claridad
+                slots_seleccionados_time.append(datetime.strptime(hora_str_seleccionada, '%H:%M').time())
         except ValueError:
-            messages.error(request, "Formato hora inválido.")
+            messages.error(request, "Formato de hora inválido en los slots seleccionados.")
             context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
             return render(request, self.template_name, context)
 
-        slots_seleccionados_time.sort()
-        consecutivos = True
-        for i in range(len(slots_seleccionados_time) - 1):
-            dt1 = datetime.combine(date.today(), slots_seleccionados_time[i])
-            dt2 = datetime.combine(date.today(), slots_seleccionados_time[i + 1])
-            if dt1 + timedelta(minutes=30) != dt2:
-                consecutivos = False
-                break
-        if not consecutivos:
-            messages.error(request, "Horarios no consecutivos.")
-            context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
-            return render(request, self.template_name, context)
-
-        # Determinar fechas a reservar
-        fechas_a_reservar = []
-        if fecha_base < timezone.localdate():
-            messages.error(request, "Fecha pasada.")
-            context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
-            return render(request, self.template_name, context)
+        slots_seleccionados_time.sort() # Asegurar orden para validación de consecutivos
         
-        fechas_a_reservar.append(fecha_base)  # Día inicial
-        if tipo_reserva_seleccionado == 'mensual':
-            # Calcular fechas semanales por ~30 días (5 fechas en total: base + 4 semanas)
-            fecha_siguiente = fecha_base
-            for _ in range(3):  # 4 semanas adicionales para cubrir ~30 días
-                fecha_siguiente += timedelta(days=7)  # Siguiente semana
-                if fecha_siguiente >= timezone.localdate():  # Solo fechas futuras
-                    fechas_a_reservar.append(fecha_siguiente)
+        # Validación de horarios consecutivos
+        if len(slots_seleccionados_time) > 1: # Solo si hay más de un slot
+            consecutivos = True
+            for i in range(len(slots_seleccionados_time) - 1):
+                # Combinar con una fecha arbitraria (hoy) para poder usar timedelta
+                dt1 = datetime.combine(date.today(), slots_seleccionados_time[i])
+                dt2 = datetime.combine(date.today(), slots_seleccionados_time[i + 1])
+                # Asumiendo que tus slots son de 30 minutos
+                if dt1 + timedelta(minutes=30) != dt2:
+                    consecutivos = False
+                    break
+            if not consecutivos:
+                messages.error(request, "Los horarios seleccionados deben ser consecutivos.")
+                context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
+                return render(request, self.template_name, context)
 
-        # VALIDACIÓN PREVIA GLOBAL
+        # --- DETERMINAR FECHAS A RESERVAR ---
+        fechas_a_reservar = [fecha_base] # Día inicial siempre
+        if tipo_reserva_seleccionado == 'mensual':
+            fecha_siguiente_iter = fecha_base # Renombrar para evitar confusión con la variable de loop
+            # Genera para las siguientes 3 semanas (total 4 instancias incluyendo la base)
+            for _ in range(3): # El original era 3, lo que da base + 3 semanas = 4.
+                fecha_siguiente_iter += timedelta(days=7)
+                if fecha_siguiente_iter >= timezone.localdate(): # Solo fechas futuras o hoy
+                     fechas_a_reservar.append(fecha_siguiente_iter)
+
+        # --- VALIDACIÓN PREVIA GLOBAL DE CONFLICTOS ---
         slots_a_verificar = [{'fecha': fr, 'hora_inicio': hi} for fr in fechas_a_reservar for hi in slots_seleccionados_time]
-        q_objects = Q()
+        q_objects_conflicto = Q() # Renombrar para claridad
         for slot_info in slots_a_verificar:
-            q_objects |= Q(fecha=slot_info['fecha'], hora_inicio=slot_info['hora_inicio'])
+            q_objects_conflicto |= Q(fecha=slot_info['fecha'], hora_inicio=slot_info['hora_inicio'])
+
         conflictos_encontrados = []
-        if q_objects:
-            conflictos_encontrados = Reserva.objects.filter(cancha=cancha, estado__in=['confirmada', 'pendiente']).filter(q_objects).values('fecha', 'hora_inicio')
+        if q_objects_conflicto: # Solo consultar si hay algo que verificar
+            # Considerar reservas 'confirmada' Y 'pendiente_pago' como conflictos
+            conflictos_encontrados = Reserva.objects.filter(
+                cancha=cancha,
+                estado__in=['confirmada', 'pendiente_pago'] # IMPORTANTE: incluir pendiente_pago
+            ).filter(q_objects_conflicto).values('fecha', 'hora_inicio')
+
         conflictos_set = {(c['fecha'], c['hora_inicio']) for c in conflictos_encontrados}
         if conflictos_set:
-            error_detalle = ", ".join([f"{f.strftime('%d/%m')} {h.strftime('%H:%M')}" for f, h in sorted(list(conflictos_set))])
-            messages.error(request, f"Horarios ocupados: {error_detalle}")
+            error_detalle = ", ".join([f"{f.strftime('%d/%m/%y')} {h.strftime('%H:%M')}" for f, h in sorted(list(conflictos_set))])
+            messages.error(request, f"Alguno de los horarios seleccionados ya está ocupado: {error_detalle}")
             context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
             return render(request, self.template_name, context)
 
-        # --- CREAR LAS RESERVAS (ASIGNANDO PRECIO) ---
+        # --- CREAR LAS RESERVAS ---
         usuario_a_asignar = request.user if request.user.is_authenticated else None
-        pk_primera_reserva = None  # Para el redirect
-        for i, fecha_res in enumerate(fechas_a_reservar):
-            for j, hora_inicio in enumerate(slots_seleccionados_time):
+        pk_primera_reserva_mensual = None # Solo para redirect de mensual
+
+        # Determinar el estado basado en el tipo de reserva
+        estado_para_crear = 'pendiente_pago' if tipo_reserva_seleccionado == 'diario' else 'confirmada'
+
+        for i_fecha, fecha_res in enumerate(fechas_a_reservar): # Renombrar i
+            for j_hora, hora_inicio_slot_actual in enumerate(slots_seleccionados_time): # Renombrar j y hora_inicio
                 try:
-                    dt_inicio = datetime.combine(fecha_res, hora_inicio)
-                    dt_fin = dt_inicio + timedelta(minutes=30)
-                    hora_fin = dt_fin.time()
-                    # --- Calcular y asignar precio ---
-                    precio_turno_actual = Decimal('1500.00')  # Reemplaza esta lógica según necesites
+                    dt_inicio = datetime.combine(fecha_res, hora_inicio_slot_actual)
+                    dt_fin = dt_inicio + timedelta(minutes=30) # Asumiendo slots de 30 min
+                    hora_fin_slot_actual = dt_fin.time()
+
+                    # Lógica de precio (mantener o ajustar según necesidad)
+                    precio_turno_actual = Decimal('1500.00') # Ejemplo, debe ser configurable o calculado
 
                     reserva_obj = Reserva.objects.create(
                         cancha=cancha,
                         usuario=usuario_a_asignar,
                         fecha=fecha_res,
-                        hora_inicio=hora_inicio,
-                        hora_fin=hora_fin,
+                        hora_inicio=hora_inicio_slot_actual,
+                        hora_fin=hora_fin_slot_actual,
                         nombre_reserva=descripcion_bloque,
                         tipo_reserva_origen=tipo_reserva_seleccionado,
                         precio_reserva=precio_turno_actual,
-                        estado='confirmada'
+                        estado=estado_para_crear # Usar el estado determinado
                     )
                     reservas_creadas_obj.append(reserva_obj)
-                    if i == 0 and j == 0:
-                        pk_primera_reserva = reserva_obj.pk  # Guarda el PK del primero
+                    if tipo_reserva_seleccionado == 'mensual' and i_fecha == 0 and j_hora == 0:
+                        pk_primera_reserva_mensual = reserva_obj.pk
 
-                except Exception as e:
-                    hora_str_error = hora_inicio.strftime('%H:%M')
-                    fecha_str_error = fecha_res.strftime('%d/%m')
-                    print(f"Error {fecha_str_error} {hora_str_error}: {e}")
-                    errores_globales.append(f"{fecha_str_error} {hora_str_error}")
-                    reservas_fallidas_total += 1
+                except Exception as e: # Captura genérica, idealmente ser más específico
+                    hora_str_error = hora_inicio_slot_actual.strftime('%H:%M')
+                    fecha_str_error = fecha_res.strftime('%d/%m/%y')
+                    # Loguear el error real es importante para debugging
+                    print(f"Error creando reserva para {fecha_str_error} {hora_str_error}: {e}")
+                    errores_globales.append(f"Error en {fecha_str_error} {hora_str_error}")
+                    # reservas_fallidas_total += 1 # No se usa en el mensaje final de esta rama
 
         # --- PROCESAMIENTO POST-RESERVA ---
         num_reservas_creadas = len(reservas_creadas_obj)
+
         if num_reservas_creadas > 0:
-            tipo_msg = f" ({tipo_reserva_seleccionado.capitalize()} - Semanal x{len(fechas_a_reservar)})" if tipo_reserva_seleccionado == 'mensual' else " (Única Vez)"
-            messages.success(request, f"{num_reservas_creadas} turnos reservados{tipo_msg} como '{descripcion_bloque}'. Proceda al cobro.")
-            if pk_primera_reserva:
-                return redirect('cobro-reserva', reserva_pk=pk_primera_reserva)
-            else:
-                messages.error(request, "Error al identificar reserva para cobro.")
-                return redirect('cancha-detail', pk=cancha_pk)
-        else:
+            if tipo_reserva_seleccionado == 'mensual':
+                # El mensaje de tipo_msg ya estaba bien, solo capitalizar si es necesario.
+                # tipo_msg = f" (Mensual - Semanal x{len(fechas_a_reservar)})"
+                # El mensaje original era:
+                tipo_msg = f" ({tipo_reserva_seleccionado.capitalize()} - Semanal x{len(fechas_a_reservar)})"
+                messages.success(request, f"{num_reservas_creadas} turnos reservados{tipo_msg} como '{descripcion_bloque}'. Proceda al cobro.")
+                if pk_primera_reserva_mensual:
+                    return redirect('cobro-reserva', reserva_pk=pk_primera_reserva_mensual) # Asume que tienes esta URL
+                else:
+                    # Esto no debería pasar si se creó al menos una reserva mensual y el if de arriba es correcto
+                    messages.error(request, "Error al identificar la reserva mensual principal para el cobro. Por favor, verifique.")
+                    return redirect('cancha-detail', pk=cancha_pk)
+            
+            elif tipo_reserva_seleccionado == 'diario':
+                # Para reservas diarias, nos quedamos en la misma página
+                messages.success(request, f"{num_reservas_creadas} turno(s) diario(s) reservado(s) como '{descripcion_bloque}'. Ahora puedes pagar o cancelar individualmente.")
+                # Regenerar slots para mostrar los nuevos estados y botones
+                slots_actualizados = self._generar_slots_lee_tipo_origen(cancha, fecha_base)
+                context = {
+                    'cancha': cancha,
+                    'fecha_seleccionada': fecha_base,
+                    'fecha_str': fecha, # Pasar fecha_str de nuevo para la URL en el form
+                    'slots': slots_actualizados
+                }
+                return render(request, self.template_name, context)
+        
+        else: # No se creó ninguna reserva
             error_msg = "No se pudo crear ninguna reserva."
-            if errores_globales:
-                error_msg += " Detalles: " + ", ".join(errores_globales)
+            if errores_globales: # Si hubo errores específicos en el bucle
+                error_msg += " Detalles de errores: " + ", ".join(errores_globales)
+            else: # Si falló antes del bucle (ej. validación de conflictos o un error inesperado)
+                error_msg += " Verifique los datos o intente nuevamente."
             messages.error(request, error_msg)
-            return redirect('reservar-fecha', cancha_pk=cancha_pk, fecha=fecha)
+            # Regresar al formulario con los errores y los slots originales
+            context = {'cancha': cancha, 'fecha_seleccionada': fecha_base, 'fecha_str': fecha, 'slots': self._generar_slots_lee_tipo_origen(cancha, fecha_base)}
+            return render(request, self.template_name, context)
+
 
     def _generar_slots_lee_tipo_origen(self, cancha, fecha_obj):
         """Genera slots, marca reservados, añade PK y lee tipo origen del modelo."""
         slots_del_dia = []
-        start_time = time(7, 0)
-        end_limit = time(2, 0)
+        
+        # Definir hora de apertura y cierre para la generación de slots
+        # Ejemplo: de 7:00 AM a 2:00 AM del día siguiente
+        hora_apertura_cancha = time(7, 0)
+        # El límite es la hora HASTA la cual se generan slots.
+        # Si el último turno es 01:30-02:00, el límite de generación debe ser 02:00.
+        limite_generacion_hora = time(2, 0)
+
+        # Consulta de reservas existentes para el día
+        # Incluir todos los estados que consideras "ocupado" o "a mostrar"
+        reservas_existentes_query = Reserva.objects.filter(
+            cancha=cancha,
+            fecha=fecha_obj,
+            estado__in=['confirmada', 'pendiente_pago', 'pendiente'] # Incluye todos los relevantes
+        ).select_related('usuario') # Optimiza la consulta del usuario
+
         reservas_existentes_dict = {
             r.hora_inicio: {
                 'pk': r.pk,
                 'nombre_reserva': r.nombre_reserva,
-                'usuario_info': r.usuario.get_full_name() if r.usuario else None,
-                'tipo_origen': r.get_tipo_reserva_origen_display()
+                'usuario_info': r.usuario.get_full_name() if r.usuario else (r.nombre_reserva or "Ocupado"),
+                'tipo_origen': r.get_tipo_reserva_origen_display(), # Usar display name del modelo
+                'estado_modelo': r.estado # Pasamos el estado real del modelo para lógica en template
             }
-            for r in Reserva.objects.filter(cancha=cancha, fecha=fecha_obj, estado__in=['confirmada', 'pendiente']).select_related('usuario')
+            for r in reservas_existentes_query
         }
-        current_time = start_time
-        current_date = fecha_obj
-        while True:
-            slot_dt_inicio = datetime.combine(current_date, current_time)
-            slot_dt_fin = slot_dt_inicio + timedelta(minutes=30)
-            if slot_dt_inicio.date() > fecha_obj and slot_dt_inicio.time() >= end_limit:
-                break
-            slot_hora_inicio = current_time
+        
+        # Lógica de generación de slots (puede variar según tus necesidades)
+        # Este ejemplo genera slots de 30 minutos
+        current_datetime_slot = datetime.combine(fecha_obj, hora_apertura_cancha)
+        
+        # El límite real de tiempo hasta donde generar. Si limite_generacion_hora es < hora_apertura_cancha,
+        # significa que cruza la medianoche.
+        if limite_generacion_hora < hora_apertura_cancha:
+            # Cruza la medianoche, el límite es en el día siguiente
+            limite_datetime_generacion = datetime.combine(fecha_obj + timedelta(days=1), limite_generacion_hora)
+        else:
+            # Mismo día
+            limite_datetime_generacion = datetime.combine(fecha_obj, limite_generacion_hora)
+
+        while current_datetime_slot < limite_datetime_generacion:
+            slot_hora_inicio = current_datetime_slot.time()
+            
+            slot_dt_fin = current_datetime_slot + timedelta(minutes=30) # Duración del slot
             slot_hora_fin = slot_dt_fin.time()
-            slot_hora_inicio_name_fmt = slot_hora_inicio.strftime('%H-%M')
+
+            # Formatos para el template
             slot_hora_inicio_str = slot_hora_inicio.strftime('%H:%M')
-            estado = 'disponible'
-            reserva_info = None
-            reserva_pk = None
-            tipo_origen_display = None
-            reserva_existente_data = reservas_existentes_dict.get(slot_hora_inicio)
-            if reserva_existente_data:
-                estado = 'reservado'
-                reserva_pk = reserva_existente_data['pk']
-                reserva_info = reserva_existente_data['nombre_reserva'] or reserva_existente_data['usuario_info'] or "Reservado"
-                tipo_origen_display = reserva_existente_data['tipo_origen']
-            slots_del_dia.append({
+            slot_hora_fin_str = slot_hora_fin.strftime('%H:%M')
+            slot_hora_inicio_name_fmt = slot_hora_inicio.strftime('%H-%M') # Para IDs/names de HTML
+
+            # Info por defecto para un slot
+            slot_info_template = {
                 'hora_inicio': slot_hora_inicio,
                 'hora_fin': slot_hora_fin,
                 'hora_inicio_str': slot_hora_inicio_str,
-                'hora_fin_str': slot_hora_fin.strftime('%H:%M'),
+                'hora_fin_str': slot_hora_fin_str,
                 'hora_inicio_name_fmt': slot_hora_inicio_name_fmt,
-                'estado': estado,
-                'reserva_info': reserva_info,
-                'reserva_pk': reserva_pk,
-                'tipo_origen_display': tipo_origen_display
-            })
-            next_dt_start = slot_dt_fin
-            current_time = next_dt_start.time()
-            current_date = next_dt_start.date()
+                'estado_display': 'disponible', # Para la clase CSS y lógica de filtros JS
+                'reserva_info': None,
+                'reserva_pk': None,
+                'tipo_origen_display': None,
+                'estado_modelo_reserva': None # El estado real de la reserva en la BD
+            }
+
+            reserva_existente_data = reservas_existentes_dict.get(slot_hora_inicio)
+            if reserva_existente_data:
+                slot_info_template['reserva_pk'] = reserva_existente_data['pk']
+                slot_info_template['reserva_info'] = reserva_existente_data['nombre_reserva'] or reserva_existente_data['usuario_info'] or "Reservado"
+                slot_info_template['tipo_origen_display'] = reserva_existente_data['tipo_origen']
+                slot_info_template['estado_modelo_reserva'] = reserva_existente_data['estado_modelo']
+
+                # Determinar el 'estado_display' para el template basado en el 'estado_modelo'
+                if reserva_existente_data['estado_modelo'] == 'pendiente_pago':
+                    slot_info_template['estado_display'] = 'pendiente_pago_disp' # Estado específico para UI
+                elif reserva_existente_data['estado_modelo'] == 'confirmada':
+                    slot_info_template['estado_display'] = 'reservado'
+                elif reserva_existente_data['estado_modelo'] == 'pendiente': 
+                    # Si 'pendiente' es como 'reservado' para el usuario, usa 'reservado'
+                    # Si necesitas diferenciarlo, crea otro 'estado_display'
+                    slot_info_template['estado_display'] = 'reservado' 
+                # Las canceladas no deberían aparecer si el filtro de `estado__in` es correcto.
+            
+            slots_del_dia.append(slot_info_template)
+            
+            current_datetime_slot = slot_dt_fin # Avanzar al inicio del siguiente slot
+
         return slots_del_dia
 
 
@@ -670,37 +760,69 @@ class CobroReservaView(View):
     template_name = 'cobro_reserva.html'
     form_class = CobroForm
 
-    def get(self, request, reserva_pk):
-        reserva_base = get_object_or_404(Reserva, pk=reserva_pk)
+    def _get_bloque_context(self, reserva_base):
+        """Helper para obtener el contexto del bloque de reservas."""
         cancha = reserva_base.cancha
         nombre_bloque = reserva_base.nombre_reserva
         fecha_inicio_bloque = reserva_base.fecha
+        tipo_origen = reserva_base.tipo_reserva_origen
 
-        reservas_del_bloque = Reserva.objects.filter(
+        # Estas son TODAS las reservas que pertenecen al bloque, independientemente de su estado actual.
+        # Usaremos esto para mostrar información y calcular el monto sugerido.
+        reservas_del_bloque_display = Reserva.objects.filter(
             cancha=cancha,
             nombre_reserva=nombre_bloque,
             fecha__gte=fecha_inicio_bloque,
-            tipo_reserva_origen=reserva_base.tipo_reserva_origen
+            tipo_reserva_origen=tipo_origen
         ).order_by('fecha', 'hora_inicio')
 
-        monto_total_sugerido = sum(r.precio_reserva or Decimal('0.00') for r in reservas_del_bloque)
-        fechas_implicadas = sorted(list(set(r.fecha for r in reservas_del_bloque)))
+        # Si por alguna razón no se encuentran reservas con los criterios de bloque (ej. la reserva_base es única y no tiene nombre_reserva),
+        # entonces el "bloque" es solo la reserva_base.
+        if not reservas_del_bloque_display.exists() and nombre_bloque: # Si tiene nombre pero no encuentra, algo es raro.
+             # Log de advertencia o manejo especial si esto no debería ocurrir.
+             print(f"Advertencia: No se encontraron reservas de bloque para '{nombre_bloque}' en cancha {cancha} desde {fecha_inicio_bloque} con tipo {tipo_origen}, usando solo reserva_base {reserva_base.pk}")
+             reservas_del_bloque_display = Reserva.objects.filter(pk=reserva_base.pk)
+        elif not nombre_bloque: # Si no tiene nombre, es una reserva única
+            reservas_del_bloque_display = Reserva.objects.filter(pk=reserva_base.pk)
 
-        # --- CAMBIO AQUÍ ---
-        # Inicializar el formulario con el monto en 0.00
-        form = self.form_class(initial={'monto': Decimal('0.00')})
-        # -------------------
+
+        monto_total_sugerido = sum(r.precio_reserva or Decimal('0.00') for r in reservas_del_bloque_display)
+        fechas_implicadas = sorted(list(set(r.fecha for r in reservas_del_bloque_display)))
+        
+        return {
+            'reservas_del_bloque_display': reservas_del_bloque_display,
+            'monto_total_sugerido': monto_total_sugerido,
+            'fechas_implicadas': fechas_implicadas,
+        }
+
+    def get(self, request, reserva_pk):
+        reserva_base = get_object_or_404(Reserva, pk=reserva_pk)
+
+        # Validar si ALGUNA reserva del bloque está en estado cobrable.
+        # Si todas ya están 'confirmada', igual se permite llegar para registrar un pago (quizás un re-pago o un pago tardío).
+        # El cambio de estado solo ocurrirá para las que no estén 'confirmada'.
+        
+        # Obtener el contexto del bloque
+        bloque_context = self._get_bloque_context(reserva_base)
+        
+        # Si no hay reservas en el bloque display (muy raro si reserva_base existe), redirigir.
+        if not bloque_context['reservas_del_bloque_display'].exists():
+            messages.error(request, "No se encontraron reservas asociadas para este cobro.")
+            return redirect('cancha-detail', pk=reserva_base.cancha.pk) # O a una vista más general
+
+
+        # El monto inicial del formulario será el sugerido para el bloque completo.
+        form = self.form_class(initial={'monto': None})
 
         context = {
             'form': form,
-            'reserva_base': reserva_base,
-            'reservas_del_bloque': reservas_del_bloque,
-            'monto_total_sugerido': monto_total_sugerido, # Se sigue pasando para mostrarlo
-            'fechas_implicadas': fechas_implicadas,
+            'reserva_base': reserva_base, # La reserva que disparó el cobro (PK de la URL)
+            'reservas_del_bloque': bloque_context['reservas_del_bloque_display'], # Para mostrar en el template
+            'monto_total_sugerido': bloque_context['monto_total_sugerido'],
+            'fechas_implicadas': bloque_context['fechas_implicadas'],
         }
         return render(request, self.template_name, context)
 
-    # El método post no necesita cambios para esto
     def post(self, request, reserva_pk):
         reserva_base = get_object_or_404(Reserva, pk=reserva_pk)
         form = self.form_class(request.POST)
@@ -711,58 +833,97 @@ class CobroReservaView(View):
             descripcion_adicional = form.cleaned_data.get('descripcion_adicional', '')
 
             try:
-                descripcion_ingreso = f"Cobro reserva '{reserva_base.nombre_reserva or 'Única'}' - Cancha {reserva_base.cancha.nombre}"
-                # Contar reservas del bloque para la descripción (simplificado)
-                num_reservas_bloque = Reserva.objects.filter(
-                    cancha=reserva_base.cancha,
-                    nombre_reserva=reserva_base.nombre_reserva,
-                    fecha__gte=reserva_base.fecha,
-                    tipo_reserva_origen=reserva_base.tipo_reserva_origen
+                # Identificar TODAS las reservas que pertenecen al bloque de la reserva_base
+                # y que necesitan que su estado cambie a 'confirmada'.
+                # Estas son las que NO están ya 'confirmada' (ej. 'pendiente_pago', 'pendiente')
+                cancha = reserva_base.cancha
+                nombre_bloque = reserva_base.nombre_reserva
+                fecha_inicio_bloque = reserva_base.fecha # Usar la fecha de la reserva_base como inicio del bloque
+                tipo_origen = reserva_base.tipo_reserva_origen
+
+                # Reservas del bloque que necesitan actualizar su estado
+                # Si no hay nombre_bloque, significa que es una reserva única (diaria)
+                if nombre_bloque:
+                    reservas_a_actualizar_estado = Reserva.objects.filter(
+                        cancha=cancha,
+                        nombre_reserva=nombre_bloque,
+                        fecha__gte=fecha_inicio_bloque, # Considerar todas las futuras del bloque
+                        tipo_reserva_origen=tipo_origen,
+                        estado__in=['pendiente_pago', 'pendiente'] # Solo las que no están confirmadas
+                    )
+                else: # Reserva única, solo actualizar la reserva_base si está pendiente de pago
+                    if reserva_base.estado in ['pendiente_pago', 'pendiente']:
+                        reservas_a_actualizar_estado = Reserva.objects.filter(pk=reserva_base.pk)
+                    else:
+                        reservas_a_actualizar_estado = Reserva.objects.none()
+
+
+                reservas_actualizadas_count = 0
+                for reserva_obj in reservas_a_actualizar_estado:
+                    reserva_obj.estado = 'confirmada'
+                    # Opcional: Asignar el precio_reserva del bloque al turno individual si no lo tiene,
+                    # o si el monto cobrado es por el total y se quiere prorratear.
+                    # Por simplicidad, aquí solo cambiamos el estado.
+                    # Si quieres actualizar el precio_reserva individual:
+                    # if reserva_obj.precio_reserva is None and reserva_base.precio_reserva is not None:
+                    #     reserva_obj.precio_reserva = reserva_base.precio_reserva # O alguna lógica de prorrateo
+                    reserva_obj.save()
+                    reservas_actualizadas_count += 1
+                
+                # Descripción para el Ingreso
+                desc_nombre_reserva_ing = reserva_base.nombre_reserva or 'Turno Único'
+                desc_cancha_ing = reserva_base.cancha.nombre
+                
+                # Determinar si se cobró un bloque o una reserva individual para la descripción del ingreso
+                # Usamos la cuenta de las reservas que se actualizaron, o si es tipo mensual
+                # Tu lógica original para num_reservas_bloque ya hacía esto, la podemos reusar:
+                num_total_reservas_en_bloque_original = Reserva.objects.filter(
+                    cancha=cancha,
+                    nombre_reserva=nombre_bloque,
+                    fecha__gte=fecha_inicio_bloque,
+                    tipo_reserva_origen=tipo_origen
                 ).count()
 
-                if num_reservas_bloque > 1:
-                     descripcion_ingreso += f" (Bloque desde {reserva_base.fecha.strftime('%d/%m')})"
-                else:
-                     descripcion_ingreso += f" ({reserva_base.fecha.strftime('%d/%m')} {reserva_base.hora_inicio.strftime('%H:%M')})"
+                if num_total_reservas_en_bloque_original > 1 and nombre_bloque:
+                     descripcion_ingreso = f"Cobro bloque '{desc_nombre_reserva_ing}' - Cancha {desc_cancha_ing} (desde {reserva_base.fecha.strftime('%d/%m')})"
+                else: # Incluye el caso de reserva única (sin nombre_bloque) o un "bloque" de 1
+                     descripcion_ingreso = f"Cobro reserva '{desc_nombre_reserva_ing}' - Cancha {desc_cancha_ing} ({reserva_base.fecha.strftime('%d/%m')} {reserva_base.hora_inicio.strftime('%H:%M')})"
 
                 if descripcion_adicional:
                     descripcion_ingreso += f" - {descripcion_adicional}"
 
+                # Crear UN Ingreso asociado a la reserva_base, con el monto total cobrado.
                 ingreso = Ingreso.objects.create(
-                    reserva=reserva_base,
-                    fecha=timezone.now().date(),
+                    reserva=reserva_base, # Asociar a la reserva que inició el cobro
+                    fecha=timezone.now().date(), # O la fecha que el usuario indique para el pago
                     monto=monto_cobrado,
                     descripcion=descripcion_ingreso,
                     metodo_pago=metodo_pago
                 )
-                messages.success(request, f"Cobro de ${monto_cobrado:.2f} registrado exitosamente para la reserva '{reserva_base.nombre_reserva or 'Única'}'.")
+
+                if reservas_actualizadas_count > 0:
+                    messages.success(request, f"{reservas_actualizadas_count} turno(s) del bloque '{desc_nombre_reserva_ing}' confirmados. Cobro de ${monto_cobrado:.2f} registrado.")
+                else:
+                    # Esto pasaría si todas las reservas del bloque ya estaban confirmadas, pero se registra un pago.
+                    messages.success(request, f"Cobro de ${monto_cobrado:.2f} registrado para '{desc_nombre_reserva_ing}'. (Los turnos ya estaban confirmados).")
+                
+                # Redirigir a la vista de reserva de fecha para la reserva_base.
+                # Esto es crucial para que el usuario vea los estados actualizados.
                 return redirect('reservar-fecha', cancha_pk=reserva_base.cancha.pk, fecha=reserva_base.fecha.strftime('%Y-%m-%d'))
 
             except Exception as e:
-                 # Es buena idea loguear el error real
-                 print(f"Error al crear Ingreso para reserva {reserva_pk}: {e}") # Log a consola/archivo
-                 messages.error(request, f"Ocurrió un error al registrar el cobro. Detalle: {e}") # O un mensaje más genérico
+                 print(f"Error crítico al procesar cobro para reserva {reserva_pk} (Bloque: {reserva_base.nombre_reserva}): {e}")
+                 messages.error(request, f"Ocurrió un error grave al registrar el cobro. Por favor, contacte a soporte. Detalle: {e}")
 
         # Si el formulario no es válido, volver a mostrarlo con errores
-        cancha = reserva_base.cancha
-        nombre_bloque = reserva_base.nombre_reserva
-        fecha_inicio_bloque = reserva_base.fecha
-        # Asegurarse de recalcular el contexto completo para el renderizado de error
-        reservas_del_bloque = Reserva.objects.filter(
-            cancha=cancha,
-            nombre_reserva=nombre_bloque,
-            fecha__gte=fecha_inicio_bloque,
-            tipo_reserva_origen=reserva_base.tipo_reserva_origen
-        ).order_by('fecha', 'hora_inicio')
-        monto_total_sugerido = sum(r.precio_reserva or Decimal('0.00') for r in reservas_del_bloque)
-        fechas_implicadas = sorted(list(set(r.fecha for r in reservas_del_bloque)))
-
+        # Reconstruir el contexto necesario para el template
+        bloque_context_error = self._get_bloque_context(reserva_base)
         context = {
             'form': form, # El formulario con errores y datos ingresados
             'reserva_base': reserva_base,
-            'reservas_del_bloque': reservas_del_bloque,
-            'monto_total_sugerido': monto_total_sugerido, # Aún necesario para mostrar
-            'fechas_implicadas': fechas_implicadas,
+            'reservas_del_bloque': bloque_context_error['reservas_del_bloque_display'],
+            'monto_total_sugerido': bloque_context_error['monto_total_sugerido'],
+            'fechas_implicadas': bloque_context_error['fechas_implicadas'],
         }
         return render(request, self.template_name, context)
 
