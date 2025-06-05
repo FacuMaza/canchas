@@ -126,8 +126,9 @@ class PublicReservarClienteView(View):
     template_name = 'public_reservar_cliente.html'
     form_class = PublicClienteReservaForm
 
+    # ... (El método _generar_slots_lee_tipo_origen no cambia) ...
     def _generar_slots_lee_tipo_origen(self, cancha, fecha_obj):
-        # ... (Tu función _generar_slots_lee_tipo_origen no necesita cambios) ...
+        # ... (Tu función se mantiene igual) ...
         slots_del_dia = []
         hora_apertura_cancha = time(7, 0)
         limite_generacion_hora = time(2, 0)
@@ -180,8 +181,8 @@ class PublicReservarClienteView(View):
             current_datetime_slot = slot_dt_fin
         return slots_del_dia
     
+    # ... (El método get no cambia) ...
     def get(self, request, cancha_pk, fecha):
-        # ... (el método GET no necesita cambios) ...
         cancha = get_object_or_404(Cancha, pk=cancha_pk, esta_activa=True)
         try:
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
@@ -204,8 +205,7 @@ class PublicReservarClienteView(View):
         return render(request, self.template_name, context)
 
     def post(self, request, cancha_pk, fecha):
-        # ... (Todo el método POST hasta el final se mantiene igual) ...
-        # ... (Guarda los datos en la sesión como lo hacía antes) ...
+        # ... (Lógica inicial sin cambios) ...
         cancha = get_object_or_404(Cancha, pk=cancha_pk, esta_activa=True)
         try:
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
@@ -241,8 +241,9 @@ class PublicReservarClienteView(View):
             return _render_form_con_errores("No seleccionaste ningún horario. Por favor, elige al menos uno.")
 
         nombre_cliente = form_cliente.cleaned_data['nombre_cliente']
-        contacto_cliente = form_cliente.cleaned_data['contacto_cliente']
+        # La línea para obtener `contacto_cliente` ha sido eliminada.
 
+        # ... (Toda la validación de slots y horarios consecutivos se mantiene igual) ...
         slots_seleccionados_time = []
         try:
             for hora_str_seleccionada in slots_seleccionados_str:
@@ -276,7 +277,8 @@ class PublicReservarClienteView(View):
                 conflictos_set = {(c['fecha'], c['hora_inicio']) for c in conflictos_encontrados}
                 error_detalle = ", ".join([f"{h.strftime('%H:%M')}" for f, h in sorted(list(conflictos_set))])
                 return _render_form_con_errores(f"Alguno(s) de los horarios seleccionados ({error_detalle}) ya no está(n) disponible(s). Por favor, intenta de nuevo.")
-
+        
+        # ... (Lógica de creación de reservas con `notas_internas` modificado) ...
         reservas_creadas_count = 0
         errores_creacion = []
         horas_reservadas_exitosamente = []
@@ -294,7 +296,8 @@ class PublicReservarClienteView(View):
                     tipo_reserva_origen='publica',
                     precio_reserva=precio_turno_publico_cliente,
                     estado='pendiente_pago',
-                    notas_internas=f"Reserva cliente público: {nombre_cliente}. Contacto: {contacto_cliente}."
+                    # CAMBIO: Se elimina la variable `contacto_cliente` de las notas.
+                    notas_internas=f"Reserva cliente público: {nombre_cliente}."
                 )
                 reservas_creadas_count += 1
                 horas_reservadas_exitosamente.append(hora_inicio_slot_actual.strftime('%H:%M'))
@@ -302,6 +305,7 @@ class PublicReservarClienteView(View):
                 print(f"ERROR al crear reserva: {e}")
                 errores_creacion.append(hora_inicio_slot_actual.strftime('%H:%M'))
 
+        # ... (La parte final del método post se mantiene igual) ...
         if reservas_creadas_count > 0:
             messages.success(request, f"¡Gracias, {nombre_cliente}! Tu solicitud de {reservas_creadas_count} turno(s) ha sido registrada.")
             

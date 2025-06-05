@@ -659,15 +659,14 @@ ParticipantePicaditoFormSet = inlineformset_factory(
 
 
 
+# forms.py
+
+from django import forms
+
 class PublicClienteReservaForm(forms.Form):
     nombre_cliente = forms.CharField(
         label="Tu Nombre Completo",
         max_length=100,
         widget=forms.TextInput(attrs={'class': 'form-control mb-2', 'placeholder': 'Ej: Juan Pérez'})
     )
-    contacto_cliente = forms.CharField(
-        label="Tu Teléfono o Email (para confirmación)",
-        max_length=100,
-        required=True, # Puedes hacerlo opcional si prefieres
-        widget=forms.TextInput(attrs={'class': 'form-control mb-3', 'placeholder': 'Ej: 1122334455 o juan@ejemplo.com'})
-    )
+    

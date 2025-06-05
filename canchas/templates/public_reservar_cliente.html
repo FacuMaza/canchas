@@ -7,24 +7,7 @@
     <h2 class="text-center mb-3">{{ titulo_pagina }}</h2>
     <p class="text-center text-muted mb-4">Selecciona los horarios disponibles que deseas reservar y completa tus datos.</p>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h5 class="card-title mb-3">Cambiar Fecha</h5>
-            <form method="get" action="{% url 'public-reservar-cliente' cancha_pk=cancha.pk fecha=fecha_seleccionada|date:'Y-m-d' %}" class="row gx-2 gy-2 align-items-center">
-                <div class="col-12 col-sm-auto flex-grow-1">
-                    <label for="fecha_calendario" class="visually-hidden">Fecha</label>
-                    <input type="date" id="fecha_calendario" name="fecha_seleccionada_input" class="form-control form-control-lg"
-                           value="{{ fecha_seleccionada|date:'Y-m-d' }}"
-                           min="{{ ''|date:'Y-m-d' }}">
-                </div>
-                <div class="col-12 col-sm-auto">
-                    <button type="submit" class="btn btn-secondary btn-lg w-100">
-                        <i class="bi bi-search"></i> Ver Fecha
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- EL BLOQUE "CAMBIAR FECHA" HA SIDO ELIMINADO DE AQUÍ -->
 
     {% if slots %}
     <form method="post" id="formReservaCliente">
@@ -49,21 +32,21 @@
                         </div>
                     {% endif %}
                 </div>
-                <div class="mb-3">
-                    <label for="{{ form_cliente.contacto_cliente.id_for_label }}" class="form-label">{{ form_cliente.contacto_cliente.label }}:</label>
-                    {{ form_cliente.contacto_cliente }}
-                    {% if form_cliente.contacto_cliente.errors %}
-                        <div class="invalid-feedback d-block">
-                             {% for error in form_cliente.contacto_cliente.errors %} {{ error }} {% endfor %}
-                        </div>
-                    {% endif %}
-                </div>
+                <!-- CAMPO DE CONTACTO (TELÉFONO/EMAIL) SIGUE ELIMINADO -->
             </div>
         </div>
         
         <div class="card shadow-sm">
             <div class="card-body">
-                <h5 class="card-title mb-3">Horarios Disponibles para el {{ fecha_seleccionada|date:"l, d \d\e F \d\e Y" }}</h5>
+                <h5 class="card-title mb-3">Horarios Disponibles</h5>
+                
+                <!-- CAMBIO: Selector de fecha reintegrado aquí, de forma más limpia -->
+                <div class="mb-4">
+                    <label for="fecha_calendario" class="form-label"><strong>Fecha seleccionada:</strong></label>
+                    <input type="date" id="fecha_calendario" name="fecha_seleccionada_input" class="form-control"
+                           value="{{ fecha_seleccionada|date:'Y-m-d' }}">
+                </div>
+
                 <p class="text-muted small mb-3">
                     <i class="bi bi-info-circle"></i> Haz clic en los turnos para seleccionarlos. Puedes seleccionar varios turnos consecutivos.
                 </p>
@@ -118,6 +101,7 @@
 
 {% block extra_js %}
 <script>
+    // CAMBIO: El script para manejar el cambio de fecha ha sido restaurado
     const fechaInput = document.getElementById('fecha_calendario');
     if (fechaInput) {
         fechaInput.addEventListener('change', function() {
@@ -126,7 +110,8 @@
             if (canchaPk && nuevaFecha) {
                 const hoy = new Date().toISOString().split('T')[0];
                 if (nuevaFecha >= hoy) {
-                    window.location.href = `/reservar-turno/${canchaPk}/${nuevaFecha}/`;
+                    // La URL ahora debe coincidir con tu patrón de URL
+                    window.location.href = `/reservar-turno/${canchaPk}/${nuevaFecha}/`; 
                 } else {
                     alert("No puedes seleccionar una fecha pasada.");
                     this.value = "{{ fecha_seleccionada|date:'Y-m-d' }}";
