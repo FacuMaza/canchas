@@ -26,7 +26,7 @@
         </div>
     </div>
 
-    {% if slots %} {# Este 'if slots' ahora es más significativo, si no hay NADA disponible, entra al 'else' de abajo #}
+    {% if slots %}
     <form method="post" id="formReservaCliente">
         {% csrf_token %}
         
@@ -70,9 +70,8 @@
 
                 <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-2 mb-3">
                     {% for slot in slots %}
-                    {# Con el cambio en la vista, solo llegarán slots con estado_display == 'disponible' #}
                     <div class="col">
-                        <div class="slot disponible"> {# Siempre será 'disponible' si la vista filtra bien #}
+                        <div class="slot disponible">
                             <input type="checkbox" name="slot_reservar" value="{{ slot.hora_inicio_str }}" 
                                    id="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-checkbox">
                             <label for="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-label">
@@ -82,7 +81,6 @@
                         </div>
                     </div>
                     {% empty %}
-                    {# Este bloque se mostrará si la lista 'slots' está vacía después del filtrado en la vista #}
                     <div class="col-12">
                         <p class="text-center text-muted fst-italic mt-3">
                             <i class="bi bi-emoji-frown"></i> Ups, no hay horarios disponibles para esta cancha en la fecha seleccionada. Intenta con otra fecha.
@@ -93,7 +91,6 @@
             </div>
         </div>
 
-        {# Solo mostrar el botón de reservar si efectivamente hay slots (aunque el empty ya lo cubre) #}
         {% if slots %}
         <div class="mt-4 d-grid gap-2 d-sm-flex justify-content-sm-center">
             <button type="submit" class="btn btn-success btn-lg px-4 gap-3">
@@ -106,7 +103,7 @@
         {% endif %}
 
     </form>
-    {% else %} {# Este 'else' corresponde al 'if slots' inicial, si la lista slots llega vacía desde la vista #}
+    {% else %}
     <div class="alert alert-warning text-center" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>No hay horarios disponibles para esta cancha en la fecha seleccionada.
     </div>
@@ -117,44 +114,38 @@
     </div>
     {% endif %}
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Script para que el selector de fecha actualice la URL al cambiar
     const fechaInput = document.getElementById('fecha_calendario');
     if (fechaInput) {
         fechaInput.addEventListener('change', function() {
             const canchaPk = "{{ cancha.pk }}";
             const nuevaFecha = this.value;
             if (canchaPk && nuevaFecha) {
-                // Validar que la fecha no sea anterior a hoy
                 const hoy = new Date().toISOString().split('T')[0];
                 if (nuevaFecha >= hoy) {
                     window.location.href = `/reservar-turno/${canchaPk}/${nuevaFecha}/`;
                 } else {
                     alert("No puedes seleccionar una fecha pasada.");
-                    this.value = "{{ fecha_seleccionada|date:'Y-m-d' }}"; // Revertir a la fecha actual o la seleccionada
+                    this.value = "{{ fecha_seleccionada|date:'Y-m-d' }}";
                 }
             }
         });
-        // Poner fecha mínima hoy
         var today = new Date().toISOString().split('T')[0];
         fechaInput.setAttribute('min', today);
     }
 
-    // Para mejorar la UX en la selección de slots
     const formReserva = document.getElementById('formReservaCliente');
     if(formReserva) {
         formReserva.addEventListener('submit', function(event) {
             const checkboxes = formReserva.querySelectorAll('input[name="slot_reservar"]:checked');
             if (checkboxes.length === 0) {
-                // Solo prevenir si realmente hay slots para seleccionar
                 const slotsDisponiblesEnDOM = formReserva.querySelectorAll('.slot.disponible');
                 if (slotsDisponiblesEnDOM.length > 0) {
                     alert('Por favor, selecciona al menos un horario para reservar.');
-                    event.preventDefault(); // Detiene el envío del formulario
+                    event.preventDefault();
                 }
             }
         });

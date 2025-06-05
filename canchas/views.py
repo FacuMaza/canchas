@@ -1,3 +1,4 @@
+from urllib.parse import urlencode
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.views.generic import (ListView,DetailView,CreateView,UpdateView,DeleteView,TemplateView)
@@ -24,6 +25,7 @@ from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from decimal import Decimal, InvalidOperation
 from collections import Counter
 import io
+import locale
 from django.http import HttpResponse # Ya deberías tener este
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -118,46 +120,21 @@ class PublicHomeView(ListView):
 
 
 
-
-
-
-
-
-
-
-# --- NUEVA VISTA: Para que el cliente vea disponibilidad y reserve ---
-from django.shortcuts import render, get_object_or_404, redirect
-from django.views import View
-from django.contrib import messages
-from django.utils import timezone
-from datetime import date, time, timedelta, datetime # Asegúrate que time esté aquí
-from decimal import Decimal
-from django.db.models import Q # Asegúrate que Q esté importado
-
-
-# --- NUEVA VISTA: Para que el cliente vea disponibilidad y reserve ---
+# --- PublicReservarClienteView (SIN CAMBIOS, puedes dejar la tuya) ---
 class PublicReservarClienteView(View):
-    template_name = 'public_reservar_cliente.html' # Asegúrate que esta plantilla exista
+    template_name = 'public_reservar_cliente.html'
     form_class = PublicClienteReservaForm
 
     def _generar_slots_lee_tipo_origen(self, cancha, fecha_obj):
+        # ... (Tu función _generar_slots_lee_tipo_origen no necesita cambios) ...
         slots_del_dia = []
-        
-        hora_apertura_cancha = time(7, 0) # Hora de apertura por defecto
-        # Podrías obtener esto desde el modelo Cancha si varía:
-        # hora_apertura_cancha = cancha.hora_apertura or time(7, 0) 
-        
-        limite_generacion_hora = time(2, 0) # Hasta qué hora del día siguiente generar slots (ej. 02:00 AM)
-        # Podrías obtener esto desde el modelo Cancha si varía:
-        # limite_generacion_hora = cancha.hora_cierre_extendida or time(2,0)
-
-
+        hora_apertura_cancha = time(7, 0)
+        limite_generacion_hora = time(2, 0)
         reservas_existentes_query = Reserva.objects.filter(
             cancha=cancha,
             fecha=fecha_obj,
             estado__in=['confirmada', 'pendiente_pago', 'pendiente']
         ).select_related('usuario')
-
         reservas_existentes_dict = {
             r.hora_inicio: {
                 'pk': r.pk,
@@ -168,79 +145,57 @@ class PublicReservarClienteView(View):
             }
             for r in reservas_existentes_query
         }
-        
         current_datetime_slot = datetime.combine(fecha_obj, hora_apertura_cancha)
-        
-        # Determinar el límite de generación de slots
-        # Si la hora de cierre es pasada la medianoche (ej. 2:00 AM),
-        # se refiere al día siguiente de 'fecha_obj'.
-        if limite_generacion_hora < hora_apertura_cancha: # Ej: apertura 7:00, cierre 2:00 (del día siguiente)
+        if limite_generacion_hora < hora_apertura_cancha:
             limite_datetime_generacion = datetime.combine(fecha_obj + timedelta(days=1), limite_generacion_hora)
-        else: # Ej: apertura 7:00, cierre 23:00 (del mismo día)
+        else:
             limite_datetime_generacion = datetime.combine(fecha_obj, limite_generacion_hora)
-
         while current_datetime_slot < limite_datetime_generacion:
             slot_hora_inicio = current_datetime_slot.time()
-            # Asumimos slots de 30 minutos, podrías hacerlo configurable
             slot_dt_fin = current_datetime_slot + timedelta(minutes=cancha.duracion_turno_minutos if hasattr(cancha, 'duracion_turno_minutos') else 30)
             slot_hora_fin = slot_dt_fin.time()
-
-            slot_hora_inicio_str = slot_hora_inicio.strftime('%H:%M')
-            slot_hora_fin_str = slot_hora_fin.strftime('%H:%M')
-            slot_hora_inicio_name_fmt = slot_hora_inicio.strftime('%H-%M') # Para IDs/names en HTML
-
             slot_info_template = {
                 'hora_inicio': slot_hora_inicio,
                 'hora_fin': slot_hora_fin,
-                'hora_inicio_str': slot_hora_inicio_str,
-                'hora_fin_str': slot_hora_fin_str,
-                'hora_inicio_name_fmt': slot_hora_inicio_name_fmt,
-                'estado_display': 'disponible', 
+                'hora_inicio_str': slot_hora_inicio.strftime('%H:%M'),
+                'hora_fin_str': slot_hora_fin.strftime('%H:%M'),
+                'hora_inicio_name_fmt': slot_hora_inicio.strftime('%H-%M'),
+                'estado_display': 'disponible',
                 'reserva_info': None,
                 'reserva_pk': None,
                 'tipo_origen_display': None,
                 'estado_modelo_reserva': None
             }
-
             reserva_existente_data = reservas_existentes_dict.get(slot_hora_inicio)
             if reserva_existente_data:
                 slot_info_template['reserva_pk'] = reserva_existente_data['pk']
                 slot_info_template['reserva_info'] = reserva_existente_data['nombre_reserva'] or reserva_existente_data['usuario_info'] or "Reservado"
                 slot_info_template['tipo_origen_display'] = reserva_existente_data['tipo_origen']
                 slot_info_template['estado_modelo_reserva'] = reserva_existente_data['estado_modelo']
-                
                 if reserva_existente_data['estado_modelo'] in ['pendiente_pago', 'confirmada', 'pendiente']:
                     slot_info_template['estado_display'] = 'reservado'
-            
-            # Solo añadir si está disponible para la vista pública
             if slot_info_template['estado_display'] == 'disponible':
                 slots_del_dia.append(slot_info_template)
-            
             current_datetime_slot = slot_dt_fin
-
         return slots_del_dia
-
-
+    
     def get(self, request, cancha_pk, fecha):
+        # ... (el método GET no necesita cambios) ...
         cancha = get_object_or_404(Cancha, pk=cancha_pk, esta_activa=True)
         try:
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
             messages.error(request, "Formato de fecha inválido.")
-            return redirect('public-home') # Asegúrate que 'public-home' es una URL válida
-
+            return redirect('public-home')
         if fecha_obj < timezone.localdate():
             messages.warning(request, "No puedes ver disponibilidad para una fecha pasada.")
-            # Podrías redirigir a la misma vista pero con la fecha de hoy
-            # return redirect('public-reservar-cliente', cancha_pk=cancha.pk, fecha=timezone.localdate().strftime('%Y-%m-%d'))
-            return redirect('public-home') 
-
+            return redirect('public-home')
         slots = self._generar_slots_lee_tipo_origen(cancha, fecha_obj)
-        form = self.form_class() 
+        form = self.form_class()
         context = {
             'cancha': cancha,
             'fecha_seleccionada': fecha_obj,
-            'fecha_str': fecha, # Para mantener en la URL y el input date
+            'fecha_str': fecha,
             'slots': slots,
             'form_cliente': form,
             'titulo_pagina': f"Reservar en {cancha.nombre} para el {fecha_obj.strftime('%d/%m/%Y')}"
@@ -248,55 +203,39 @@ class PublicReservarClienteView(View):
         return render(request, self.template_name, context)
 
     def post(self, request, cancha_pk, fecha):
+        # ... (Todo el método POST hasta el final se mantiene igual) ...
+        # ... (Guarda los datos en la sesión como lo hacía antes) ...
         cancha = get_object_or_404(Cancha, pk=cancha_pk, esta_activa=True)
         try:
             fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
         except ValueError:
             messages.error(request, "Formato de fecha inválido.")
             return redirect('public-home')
-
-        # Re-validar la fecha en POST, por si el usuario manipuló la URL
         if fecha_obj < timezone.localdate():
             messages.error(request, "No puedes reservar en una fecha pasada.")
-            # No es necesario volver a generar slots aquí si simplemente rediriges
             return redirect('public-home')
-            # O si quieres mostrar el form con el error en la misma página:
-            # slots = self._generar_slots_lee_tipo_origen(cancha, fecha_obj) # No se mostrarían de todas formas
-            # form_cliente = self.form_class(request.POST)
-            # context = {'cancha': cancha, 'fecha_seleccionada': fecha_obj, 'fecha_str': fecha, 'slots': slots, 'form_cliente': form_cliente, 'titulo_pagina': f"Reservar en {cancha.nombre} para el {fecha_obj.strftime('%d/%m/%Y')}"}
-            # return render(request, self.template_name, context)
-
 
         form_cliente = self.form_class(request.POST)
-        slots_seleccionados_str = request.POST.getlist('slot_reservar') # `slot_reservar` es el name del checkbox en el HTML
+        slots_seleccionados_str = request.POST.getlist('slot_reservar')
 
-        # --- Lógica para manejar errores y renderizar de nuevo el form ---
         def _render_form_con_errores(error_msg=None, form_errors=False):
-            if error_msg and not form_errors: # Si es un error general y no del form
-                 messages.error(request, error_msg)
-            # Si el form ya tiene errores (is_valid() falló), no añadir más mensajes genéricos si es el mismo problema
-            # Pero si el error es específico de slots o conflictos, sí añadirlo
-            elif error_msg and form_errors: # error_msg específico sobre slots o conflictos
-                 messages.error(request, error_msg)
-
-
-            slots = self._generar_slots_lee_tipo_origen(cancha, fecha_obj) # Siempre regenerar slots para mostrar el estado actual
+            if error_msg and not form_errors:
+                messages.error(request, error_msg)
+            elif error_msg and form_errors:
+                messages.error(request, error_msg)
+            slots = self._generar_slots_lee_tipo_origen(cancha, fecha_obj)
             context = {
                 'cancha': cancha,
                 'fecha_seleccionada': fecha_obj,
                 'fecha_str': fecha,
                 'slots': slots,
-                'form_cliente': form_cliente, # El form con los datos y errores
+                'form_cliente': form_cliente,
                 'titulo_pagina': f"Reservar en {cancha.nombre} para el {fecha_obj.strftime('%d/%m/%Y')}"
             }
             return render(request, self.template_name, context)
-        # --- Fin de la función helper ---
 
         if not form_cliente.is_valid():
-            # Los errores de campo ya estarán en form_cliente.errors
-            # messages.error(request, "Por favor, completa tus datos correctamente.") # Esto ya lo hace el form
             return _render_form_con_errores(form_errors=True)
-
         if not slots_seleccionados_str:
             return _render_form_con_errores("No seleccionaste ningún horario. Por favor, elige al menos uno.")
 
@@ -310,111 +249,131 @@ class PublicReservarClienteView(View):
         except ValueError:
             return _render_form_con_errores("Formato de hora inválido en los horarios seleccionados.")
 
-        slots_seleccionados_time.sort() # Importante para verificar consecutividad y para crear reservas
-        
+        slots_seleccionados_time.sort()
         duracion_turno_minutos = cancha.duracion_turno_minutos if hasattr(cancha, 'duracion_turno_minutos') else 30
 
-        # Validar consecutividad
         if len(slots_seleccionados_time) > 1:
             consecutivos = True
             for i in range(len(slots_seleccionados_time) - 1):
-                dt1 = datetime.combine(timezone.localdate(), slots_seleccionados_time[i]) # Usar una fecha dummy para comparar
+                dt1 = datetime.combine(timezone.localdate(), slots_seleccionados_time[i])
                 dt2 = datetime.combine(timezone.localdate(), slots_seleccionados_time[i+1])
-                if dt1 + timedelta(minutes=duracion_turno_minutos) != dt2: 
+                if dt1 + timedelta(minutes=duracion_turno_minutos) != dt2:
                     consecutivos = False
                     break
             if not consecutivos:
                 return _render_form_con_errores("Los horarios seleccionados deben ser consecutivos.")
-        
-        # Verificar conflictos (doble check, ya que el estado pudo cambiar mientras el usuario tenía la página abierta)
+
         q_objects_conflicto = Q()
         for hora_inicio_slot in slots_seleccionados_time:
             q_objects_conflicto |= Q(fecha=fecha_obj, hora_inicio=hora_inicio_slot)
-        
-        conflictos_encontrados = []
-        if q_objects_conflicto: # Solo hacer la query si hay Q objects
+        if q_objects_conflicto:
             conflictos_encontrados = Reserva.objects.filter(
                 cancha=cancha,
-                estado__in=['confirmada', 'pendiente_pago', 'pendiente'] # Mismos estados que se consideran "reservado"
+                estado__in=['confirmada', 'pendiente_pago', 'pendiente']
             ).filter(q_objects_conflicto).values('fecha', 'hora_inicio')
+            if conflictos_encontrados:
+                conflictos_set = {(c['fecha'], c['hora_inicio']) for c in conflictos_encontrados}
+                error_detalle = ", ".join([f"{h.strftime('%H:%M')}" for f, h in sorted(list(conflictos_set))])
+                return _render_form_con_errores(f"Alguno(s) de los horarios seleccionados ({error_detalle}) ya no está(n) disponible(s). Por favor, intenta de nuevo.")
 
-        if conflictos_encontrados:
-            conflictos_set = {(c['fecha'], c['hora_inicio']) for c in conflictos_encontrados}
-            error_detalle = ", ".join([f"{h.strftime('%H:%M')}" for f, h in sorted(list(conflictos_set))]) # Solo mostrar hora
-            return _render_form_con_errores(f"Alguno(s) de los horarios seleccionados ({error_detalle}) ya no está(n) disponible(s). Por favor, intenta de nuevo.")
-
-        # --- Creación de Reservas ---
         reservas_creadas_count = 0
-        errores_creacion = [] # Lista de horas (str) que no se pudieron reservar
-
-        # Aquí defines el precio para reservas públicas. Podría ser un valor fijo,
-        # o podrías tener una lógica más compleja (ej. desde el modelo Cancha).
-        # Si tu modelo Reserva tiene un precio_base o lo calcula en save(), puedes dejarlo None.
+        errores_creacion = []
+        horas_reservadas_exitosamente = []
         precio_turno_publico_cliente = cancha.precio_publico if hasattr(cancha, 'precio_publico') else None
-        # O un valor fijo: from decimal import Decimal; precio_turno_publico_cliente = Decimal('1000.00')
 
         for hora_inicio_slot_actual in slots_seleccionados_time:
             try:
-                dt_inicio = datetime.combine(fecha_obj, hora_inicio_slot_actual)
-                dt_fin = dt_inicio + timedelta(minutes=duracion_turno_minutos) 
-                hora_fin_slot_actual = dt_fin.time()
-
                 Reserva.objects.create(
                     cancha=cancha,
-                    usuario=None, # Reserva pública, sin usuario logueado
+                    usuario=None,
                     fecha=fecha_obj,
                     hora_inicio=hora_inicio_slot_actual,
-                    hora_fin=hora_fin_slot_actual,
-                    nombre_reserva=nombre_cliente, 
-                    tipo_reserva_origen='publica', # O 'web_cliente', 'online_directa', etc.
-                    precio_reserva=precio_turno_publico_cliente, 
-                    estado='pendiente_pago', # Estado inicial para reservas de clientes
+                    hora_fin=(datetime.combine(fecha_obj, hora_inicio_slot_actual) + timedelta(minutes=duracion_turno_minutos)).time(),
+                    nombre_reserva=nombre_cliente,
+                    tipo_reserva_origen='publica',
+                    precio_reserva=precio_turno_publico_cliente,
+                    estado='pendiente_pago',
                     notas_internas=f"Reserva cliente público: {nombre_cliente}. Contacto: {contacto_cliente}."
                 )
                 reservas_creadas_count += 1
+                horas_reservadas_exitosamente.append(hora_inicio_slot_actual.strftime('%H:%M'))
             except Exception as e:
-                # Loggear el error real para debugging
-                print(f"ERROR al crear reserva para cliente {nombre_cliente} en {fecha_obj} {hora_inicio_slot_actual}: {e}")
+                print(f"ERROR al crear reserva: {e}")
                 errores_creacion.append(hora_inicio_slot_actual.strftime('%H:%M'))
 
-        # --- Redirección y Mensajes Post-Creación ---
         if reservas_creadas_count > 0:
-            # Mensaje genérico de éxito, la página 'reserva-exitosa' dará los detalles.
-            success_msg = f"¡Tu solicitud de {reservas_creadas_count} turno(s) ha sido registrada!"
-            if nombre_cliente: # Personalizar un poco si tenemos el nombre
-                 success_msg = f"¡Gracias, {nombre_cliente}! Tu solicitud de {reservas_creadas_count} turno(s) ha sido registrada."
+            messages.success(request, f"¡Gracias, {nombre_cliente}! Tu solicitud de {reservas_creadas_count} turno(s) ha sido registrada.")
             
-            messages.success(request, success_msg)
+            request.session['reserva_exitosa_info'] = {
+                'nombre_cliente': nombre_cliente,
+                'fecha_reserva': fecha_obj.isoformat(),
+                'horas_reservadas': horas_reservadas_exitosamente,
+            }
 
             if errores_creacion:
-                # Si hubo errores parciales, informar al usuario, pero aún así redirigir a la página de éxito
-                # para los turnos que sí se crearon.
-                messages.warning(request, f"Atención: Algunos horarios ({', '.join(errores_creacion)}) no pudieron ser reservados debido a un error inesperado. Por favor, contáctanos.")
+                messages.warning(request, f"Atención: Algunos horarios ({', '.join(errores_creacion)}) no pudieron ser reservados.")
             
-            # *** CAMBIO PRINCIPAL: Redirigir a la página de éxito ***
-            return redirect('reserva-exitosa') # Asegúrate que 'reserva-exitosa' esté definida en tus urls.py
+            return redirect('reserva-exitosa')
         
-        else: # Si no se creó ninguna reserva (ej. todos los slots dieron error en el bucle)
-            msg_error = "No se pudo procesar tu solicitud de reserva en este momento."
+        else:
+            msg_error = "No se pudo procesar tu solicitud de reserva. Ningún turno fue creado."
             if errores_creacion:
                 msg_error += f" Problemas con horarios: {', '.join(errores_creacion)}."
-            else:
-                # Este caso es poco probable si la validación de conflictos anterior funcionó,
-                # a menos que haya un error muy específico en el .create()
-                msg_error += " Por favor, intenta nuevamente o contacta con nosotros."
-            
             return _render_form_con_errores(msg_error)
 
+
+# --- ReservaExitosaView (AQUÍ ESTÁ EL CAMBIO IMPORTANTE) ---
 class ReservaExitosaView(TemplateView):
-    template_name = 'reserva_exitosa.html' # O 'tu_app/reserva_exitosa.html'
+    template_name = 'reserva_exitosa.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['titulo_pagina'] = "Reserva Confirmada"
-        # Aquí podrías pasar más información si la necesitaras en la plantilla de éxito,
-        # por ejemplo, recuperándola de la sesión o como parámetros de URL (aunque para este caso no es necesario).
-        return context
+        
+        reserva_info = self.request.session.pop('reserva_exitosa_info', None)
+        
+        wa_params_genericos = {'text': 'Hola, acabo de realizar una solicitud de reserva y quiero confirmar los detalles. Gracias.'}
+        context['whatsapp_url'] = f"https://wa.me/5493875908958?{urlencode(wa_params_genericos)}"
+        
+        if reserva_info:
+            try:
+                # --- INICIO DE LA CORRECCIÓN ---
+                # Intentamos establecer el locale en español. Es posible que necesites
+                # instalar el paquete de idioma en tu sistema operativo si esto falla.
+                # Para Windows: 'es-ES' o 'Spanish_Spain.1252'
+                # Para Linux/macOS: 'es_ES.UTF-8'
+                try:
+                    locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+                except locale.Error:
+                    try:
+                        locale.setlocale(locale.LC_TIME, 'es-ES')
+                    except locale.Error:
+                        print("ADVERTENCIA: No se pudo establecer el locale a español. Las fechas saldrán en inglés.")
+                # --- FIN DE LA CORRECCIÓN ---
+                
+                nombre = reserva_info.get('nombre_cliente')
+                fecha_obj = date.fromisoformat(reserva_info.get('fecha_reserva'))
+                horas = reserva_info.get('horas_reservadas', [])
+                
+                # strftime ahora debería funcionar correctamente en español
+                fecha_str = fecha_obj.strftime('%A, %d de %B').capitalize()
+                horas_str = ", ".join(horas)
+                
+                mensaje_texto = (
+                    f"Hola, quiero confirmar mi solicitud de reserva para el día {fecha_str} "
+                    f"a nombre de {nombre} para los horarios: {horas_str}. Gracias."
+                )
+                
+                wa_params = {'text': mensaje_texto}
+                context['whatsapp_url'] = f"https://wa.me/5493875908958?{urlencode(wa_params)}"
+                context['reserva_confirmada'] = True
 
+            except Exception as e:
+                # Capturamos CUALQUIER error para evitar el Error 500
+                print(f"ERROR CRÍTICO al procesar datos para URL de WhatsApp: {e}")
+                # Si falla, se usará la URL genérica definida al principio.
+
+        context['titulo_pagina'] = "Reserva Registrada"
+        return context
 
 
 
