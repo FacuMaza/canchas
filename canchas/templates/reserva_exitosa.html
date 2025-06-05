@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %} {# AÑADIDO POR PRECAUCIÓN, O SI USAS OTRAS TAGS DE i18n #}
+
+{% block title %}Reserva Registrada con Éxito{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center">
+    <div class="card shadow-sm">
+        <div class="card-body p-5">
+            <i class="bi bi-check-circle-fill text-success display-1 mb-3"></i>
+            <h2 class="card-title text-success">¡Tu Turno se ha Registrado con Éxito!</h2>
+            <p class="lead mt-4">
+                Gracias por tu solicitud de reserva. Para completarla, por favor sigue estos pasos:
+            </p>
+            <div class="alert alert-info mt-4" role="alert">
+                <h4 class="alert-heading">Importante:</h4>
+                <p>
+                    Contáctanos vía WhatsApp para confirmar tu reserva y/o realizar el pago haciendo clic aquí:
+                    <a href="https://wa.me/5493875908958?text={% filter urlencode %}Hola, quiero confirmar mi solicitud de reserva. Gracias.{% endfilter %}" target="_blank" class="btn btn-success btn-sm">
+                        <i class="bi bi-whatsapp"></i> Confirmar por WhatsApp
+                    </a>
+                </p>
+                <hr>
+                <p class="mb-0">
+                    Si no recibimos tu confirmación, tu reserva podría ser cancelada automáticamente <strong>una hora después</strong> del horario solicitado si no se ha confirmado el pago o contacto.
+                </p>
+            </div>
+
+            <div class="mt-5">
+                <a href="{% url 'public-home' %}" class="btn btn-primary btn-lg px-4 me-2">
+                    <i class="bi bi-house-door-fill"></i> Volver al Inicio
+                </a>
+                {# Podrías añadir un botón para ver "mis reservas" si el usuario estuviera logueado #}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# Puedes añadir JS específico si lo necesitas #}
+{% endblock %}

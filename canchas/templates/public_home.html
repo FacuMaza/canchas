@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Reserva Tu Turno{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">{{ titulo_pagina }}</h1>
+
+    {% if canchas %}
+        <div class="row">
+            {% for cancha in canchas %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ cancha.nombre }}</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">{{ cancha.get_tipo_deporte_display }}</h6>
+                        {% if cancha.descripcion %}
+                            <p class="card-text">{{ cancha.descripcion|truncatewords:20 }}</p>
+                        {% endif %}
+                        {% if cancha.ubicacion %}
+                            <p class="card-text"><small class="text-muted">Ubicación: {{ cancha.ubicacion }}</small></p>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer">
+                        <a href="{% url 'public-reservar-cliente' cancha_pk=cancha.pk fecha=fecha_hoy_str %}" class="btn btn-primary w-100">
+                            Ver Disponibilidad y Reservar
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No hay canchas activas disponibles en este momento. Por favor, vuelve a intentarlo más tarde.</p>
+    {% endif %}
+</div>
+{% endblock %}

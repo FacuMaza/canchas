@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %} <!-- Si usas crispy forms, sino quita esta línea y renderiza campos manualmente -->
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-3">{{ titulo_pagina }}</h2>
+        <p class="lead">{{ cancha.descripcion|default:"Información adicional de la cancha no disponible." }}</p>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-3">
+        <h4>Seleccionar Fecha</h4>
+        <form method="GET" action="{% url 'client-reservar-cancha' cancha.pk %}">
+            <div class="mb-3">
+                <label for="fecha" class="form-label">Fecha:</label>
+                <input type="date" id="fecha" name="fecha" class="form-control" 
+                       value="{{ fecha_seleccionada_str }}" 
+                       min="{{ today_str|default:fecha_seleccionada_str }}"
+                       onchange="this.form.submit()">
+            </div>
+            <!-- El botón de submit es opcional si onchange funciona bien -->
+            <!-- <button type="submit" class="btn btn-sm btn-outline-secondary">Ver Disponibilidad</button> -->
+        </form>
+    </div>
+
+    <div class="col-md-8">
+        <h4>Horarios Disponibles para el {{ fecha_seleccionada_obj|date:"d/m/Y" }}</h4>
+        {% if slots %}
+        <form method="POST" id="formReservaCliente">
+            {% csrf_token %}
+            <input type="hidden" name="fecha_reserva" value="{{ fecha_seleccionada_str }}">
+            
+            <div class="mb-3">
+                <label for="{{ form.nombre_cliente.id_for_label }}" class="form-label">{{ form.nombre_cliente.label }}</label>
+                {{ form.nombre_cliente }}
+                {% if form.nombre_cliente.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.nombre_cliente.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <!-- Aquí podrías añadir otros campos del ClientReservaForm si los tienes -->
+
+            <p>Selecciona los horarios (deben ser consecutivos para formar un bloque):</p>
+            <div class="slot-grid mb-3">
+                {% for slot in slots %}
+                    {% if slot.disponible %}
+                        <label class="slot disponible">
+                            <input type="checkbox" name="slot_reservar_cliente" value="{{ slot.hora_inicio_str }}" class="form-check-input slot-checkbox">
+                            {{ slot.hora_inicio_str }}
+                        </label>
+                    {% else %}
+                        <!-- <div class="slot ocupado">{{ slot.hora_inicio_str }} (Ocupado)</div> -->
+                    {% endif %}
+                {% empty %}
+                    <p>No hay horarios disponibles para esta fecha o ya han pasado.</p>
+                {% endfor %}
+            </div>
+            
+            {% if slots %}
+            <button type="submit" class="btn btn-success btn-lg btn-reservar-slots">Reservar Horarios Seleccionados</button>
+            {% endif %}
+        </form>
+        {% else %}
+            <p>No se encontraron horarios programados para la cancha en esta fecha, o todos los turnos ya han pasado/están ocupados.</p>
+        {% endif %}
+    </div>
+</div>
+<hr>
+<a href="{% url 'client-cancha-list' %}" class="btn btn-outline-secondary mt-3">« Volver a la lista de canchas</a>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('fecha');
+    if (dateInput && !dateInput.getAttribute('min')) {
+        dateInput.setAttribute('min', today);
+    }
+
+    // Simple visual feedback for selected slots
+    const checkboxes = document.querySelectorAll('.slot-checkbox');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                this.parentElement.classList.add('selected');
+            } else {
+                this.parentElement.classList.remove('selected');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

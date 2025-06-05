@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="py-5 text-center">
+    <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" fill="currentColor" class="bi bi-check-circle-fill text-success mb-3" viewBox="0 0 16 16">
+        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+    </svg>
+    <h2>¡Reserva Registrada!</h2>
+    
+    {% if bloque_reservas %}
+        <p class="lead">Tu reserva para <strong>{{ reserva.nombre_reserva }}</strong> en la cancha <strong>{{ reserva.cancha.nombre }}</strong> ha sido registrada para el día <strong>{{ reserva.fecha|date:"l, d \d\e F \d\e Y" }}</strong>.</p>
+        <p>Horario: <strong>{{ hora_inicio_bloque|time:"H:i" }}</strong> a <strong>{{ hora_fin_bloque|time:"H:i" }}</strong>.</p>
+        <ul class="list-group mb-3 col-md-6 mx-auto">
+            {% for res_item in bloque_reservas %}
+            <li class="list-group-item">{{ res_item.hora_inicio|time:"H:i" }} - {{ res_item.hora_fin|time:"H:i" }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="lead">Tu reserva para <strong>{{ reserva.nombre_reserva }}</strong> en la cancha <strong>{{ reserva.cancha.nombre }}</strong> ha sido registrada para el día <strong>{{ reserva.fecha|date:"l, d \d\e F \d\e Y" }}</strong> de <strong>{{ reserva.hora_inicio|time:"H:i" }}</strong> a <strong>{{ reserva.hora_fin|time:"H:i" }}</strong>.</p>
+    {% endif %}
+
+    <p class="text-muted">Recuerda que esta reserva está <strong>{{ reserva.get_estado_display }}</strong>. Si es necesario, el administrador se pondrá en contacto o deberás confirmar el pago según las políticas del complejo.</p>
+    <p>Puedes anotar el número de tu reserva principal: <strong>#{{ reserva.pk }}</strong></p>
+    
+    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+        <a href="{% url 'client-cancha-list' %}" class="btn btn-primary btn-lg px-4 gap-3">Reservar Otra Cancha</a>
+        <a href="{% url 'client-reservar-cancha' reserva.cancha.pk %}?fecha={{reserva.fecha|date:'Y-m-d'}}" class="btn btn-outline-secondary btn-lg px-4">Volver a la Cancha</a>
+    </div>
+</div>
+{% endblock %}
