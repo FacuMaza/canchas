@@ -1,107 +1,153 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ titulo_pagina }}{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <h2 class="text-center mb-3">{{ titulo_pagina }}</h2>
-    <p class="text-center text-muted mb-4">Selecciona los horarios disponibles que deseas reservar y completa tus datos.</p>
-
-    <!-- EL BLOQUE "CAMBIAR FECHA" HA SIDO ELIMINADO DE AQUÍ -->
-
-    {% if slots %}
-    <form method="post" id="formReservaCliente">
-        {% csrf_token %}
-        
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h5 class="card-title mb-3">Tus Datos</h5>
-                {% if form_cliente.non_field_errors %}
-                    <div class="alert alert-danger">
-                        {% for error in form_cliente.non_field_errors %}
-                            {{ error }}<br>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-                <div class="mb-3">
-                    <label for="{{ form_cliente.nombre_cliente.id_for_label }}" class="form-label">{{ form_cliente.nombre_cliente.label }}:</label>
-                    {{ form_cliente.nombre_cliente }}
-                    {% if form_cliente.nombre_cliente.errors %}
-                        <div class="invalid-feedback d-block">
-                            {% for error in form_cliente.nombre_cliente.errors %} {{ error }} {% endfor %}
-                        </div>
-                    {% endif %}
-                </div>
-                <!-- CAMPO DE CONTACTO (TELÉFONO/EMAIL) SIGUE ELIMINADO -->
-            </div>
-        </div>
-        
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title mb-3">Horarios Disponibles</h5>
-                
-                <!-- CAMBIO: Selector de fecha reintegrado aquí, de forma más limpia -->
-                <div class="mb-4">
-                    <label for="fecha_calendario" class="form-label"><strong>Fecha seleccionada:</strong></label>
-                    <input type="date" id="fecha_calendario" name="fecha_seleccionada_input" class="form-control"
-                           value="{{ fecha_seleccionada|date:'Y-m-d' }}">
-                </div>
-
-                <p class="text-muted small mb-3">
-                    <i class="bi bi-info-circle"></i> Haz clic en los turnos para seleccionarlos. Puedes seleccionar varios turnos consecutivos.
-                </p>
-
-                <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-2 mb-3">
-                    {% for slot in slots %}
-                    <div class="col">
-                        <div class="slot disponible">
-                            <input type="checkbox" name="slot_reservar" value="{{ slot.hora_inicio_str }}" 
-                                   id="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-checkbox">
-                            <label for="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-label">
-                                <span>{{ slot.hora_inicio_str }} - {{ slot.hora_fin_str }}</span>
-                                <small>Disponible</small>
-                            </label>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <div class="col-12">
-                        <p class="text-center text-muted fst-italic mt-3">
-                            <i class="bi bi-emoji-frown"></i> Ups, no hay horarios disponibles para esta cancha en la fecha seleccionada. Intenta con otra fecha.
-                        </p>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
+    <div class="mx-auto" style="max-width: 700px;">
+        <h2 class="text-center mb-3">{{ titulo_pagina }}</h2>
+        <p class="text-center text-muted mb-4">Selecciona los horarios que deseas reservar y completa tus datos.</p>
 
         {% if slots %}
-        <div class="mt-4 d-grid gap-2 d-sm-flex justify-content-sm-center">
-            <button type="submit" class="btn btn-success btn-lg px-4 gap-3">
-                <i class="bi bi-check-circle-fill"></i> Solicitar Reserva
-            </button>
-            <a href="{% url 'public-home' %}" class="btn btn-outline-secondary btn-lg px-4">
-                <i class="bi bi-arrow-left-circle"></i> Volver
-            </a>
-        </div>
-        {% endif %}
+        <form method="post" id="formReservaCliente">
+            {% csrf_token %}
 
-    </form>
-    {% else %}
-    <div class="alert alert-warning text-center" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>No hay horarios disponibles para esta cancha en la fecha seleccionada.
+            <!-- SECCIÓN 1: DATOS DEL CLIENTE -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light fw-bold">
+                    <i class="bi bi-person-fill me-2"></i>1. Tus Datos
+                </div>
+                <div class="card-body">
+                    {% if form_cliente.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form_cliente.non_field_errors %}{{ error }}<br>{% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label for="{{ form_cliente.nombre_cliente.id_for_label }}" class="form-label">{{ form_cliente.nombre_cliente.label }}:</label>
+                        {{ form_cliente.nombre_cliente }}
+                        {% if form_cliente.nombre_cliente.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form_cliente.nombre_cliente.errors %} {{ error }} {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: SELECCIÓN DE HORARIOS -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">
+                    <i class="bi bi-calendar-check me-2"></i>2. Elige tus Horarios
+                </div>
+                <div class="card-body">
+                    <!-- Selector de fecha -->
+                    <div class="mb-4">
+                        <label for="fecha_calendario" class="form-label"><strong><i class="bi bi-calendar-event"></i> Fecha seleccionada:</strong></label>
+                        <input type="date" id="fecha_calendario" name="fecha_seleccionada_input" class="form-control form-control-lg"
+                               value="{{ fecha_seleccionada|date:'Y-m-d' }}">
+                    </div>
+
+                    <p class="text-muted small mb-3">
+                        Toca los turnos para seleccionarlos. Puedes elegir varios consecutivos.
+                    </p>
+
+                    <!-- Grilla de Horarios -->
+                    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2 mb-3">
+                        {% for slot in slots %}
+                        <div class="col">
+                            <div class="slot-container">
+                                <input type="checkbox" name="slot_reservar" value="{{ slot.hora_inicio_str }}"
+                                       id="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-checkbox d-none">
+                                <label for="slot_{{ slot.hora_inicio_name_fmt }}" class="slot-label">
+                                    {{ slot.hora_inicio_str }}
+                                </label>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-light text-center border mt-3">
+                                <p class="mb-0">
+                                    <i class="bi bi-emoji-frown fs-4"></i><br>
+                                    No hay horarios disponibles en esta fecha.
+                                </p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTONES DE ACCIÓN -->
+            {% if slots %}
+            <div class="mt-4 d-grid gap-2">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="bi bi-check-circle-fill"></i> Solicitar Reserva
+                </button>
+                <a href="{% url 'public-home' %}" class="btn btn-outline-secondary">
+                    Volver
+                </a>
+            </div>
+            {% endif %}
+
+        </form>
+        {% else %}
+            <div class="card text-center shadow-sm">
+                 <div class="card-body p-4">
+                     <i class="bi bi-exclamation-triangle-fill text-warning display-4 mb-3"></i>
+                     <h5 class="card-title">No hay turnos disponibles</h5>
+                     <p class="card-text">No se encontraron horarios para la cancha en la fecha seleccionada. Por favor, intenta con otra fecha.</p>
+                     <div class="my-4">
+                        <label for="fecha_calendario_alt" class="form-label"><strong>Probar otra fecha:</strong></label>
+                        <input type="date" id="fecha_calendario" name="fecha_seleccionada_input" class="form-control"
+                               value="{{ fecha_seleccionada|date:'Y-m-d' }}">
+                    </div>
+                     <a href="{% url 'public-home' %}" class="btn btn-primary mt-2">
+                         <i class="bi bi-arrow-left-circle"></i> Volver a Canchas
+                     </a>
+                 </div>
+            </div>
+        {% endif %}
     </div>
-    <div class="text-center mt-3">
-        <a href="{% url 'public-home' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left-circle"></i> Volver a Canchas
-        </a>
-    </div>
-    {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- CSS para mejorar la UI de los slots. -->
+<style>
+    .slot-label {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 0.5rem;
+        border: 2px solid #dee2e6;
+        border-radius: 0.375rem;
+        text-align: center;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        user-select: none;
+    }
+
+    .slot-label:hover {
+        border-color: #0d6efd;
+        background-color: #e9ecef;
+    }
+
+    .slot-checkbox:checked + .slot-label {
+        background-color: #198754;
+        border-color: #146c43;
+        color: white;
+        font-weight: 700;
+    }
+
+    .slot-checkbox:checked + .slot-label::before {
+        content: "✓ ";
+    }
+</style>
+
 <script>
-    // CAMBIO: El script para manejar el cambio de fecha ha sido restaurado
+    // Tu script original de JS, que es correcto y funciona.
     const fechaInput = document.getElementById('fecha_calendario');
     if (fechaInput) {
         fechaInput.addEventListener('change', function() {
@@ -110,8 +156,7 @@
             if (canchaPk && nuevaFecha) {
                 const hoy = new Date().toISOString().split('T')[0];
                 if (nuevaFecha >= hoy) {
-                    // La URL ahora debe coincidir con tu patrón de URL
-                    window.location.href = `/reservar-turno/${canchaPk}/${nuevaFecha}/`; 
+                    window.location.href = `/reservar-turno/${canchaPk}/${nuevaFecha}/`;
                 } else {
                     alert("No puedes seleccionar una fecha pasada.");
                     this.value = "{{ fecha_seleccionada|date:'Y-m-d' }}";
@@ -127,7 +172,7 @@
         formReserva.addEventListener('submit', function(event) {
             const checkboxes = formReserva.querySelectorAll('input[name="slot_reservar"]:checked');
             if (checkboxes.length === 0) {
-                const slotsDisponiblesEnDOM = formReserva.querySelectorAll('.slot.disponible');
+                const slotsDisponiblesEnDOM = document.querySelectorAll('.slot-container');
                 if (slotsDisponiblesEnDOM.length > 0) {
                     alert('Por favor, selecciona al menos un horario para reservar.');
                     event.preventDefault();
