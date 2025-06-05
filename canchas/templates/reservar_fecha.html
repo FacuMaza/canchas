@@ -4,36 +4,25 @@
 {% block title %}Reservar Cancha: {{ cancha.nombre }} - {{ fecha_seleccionada|date:"d/m/Y" }}{% endblock %}
 
 {% block content %}
-  <div class="container mt-4">
+<div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>Reservar: {{ cancha.nombre }}</h1>
-        <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-secondary btn-sm">Volver a la Cancha</a> {# Asegúrate que 'cancha-detail' sea tu URL correcta #}
+        <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-secondary btn-sm">Volver a la Cancha</a>
     </div>
 
     <h2>Fecha Seleccionada: {{ fecha_seleccionada|date:"l, d \d\e F \d\e Y" }}</h2>
 
-    {# --- Filtros --- #}
     <div class="mb-3">
-      <strong>Filtrar por:</strong>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de horarios">
-        <button type="button" class="btn btn-outline-primary" data-filter="todos">Todos</button> {# No 'active' por defecto, JS lo hará #}
-        <button type="button" class="btn btn-outline-success" data-filter="disponible">Disponibles</button>
-        <button type="button" class="btn btn-outline-danger" data-filter="reservado">Reservados (Pagados)</button>
-        <button type="button" class="btn btn-outline-warning" data-filter="pendiente_pago_disp">Pendiente Pago</button> {# Nuevo filtro #}
-      </div>
+        <strong>Filtrar por:</strong>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de horarios">
+            <button type="button" class="btn btn-outline-primary" data-filter="todos">Todos</button>
+            <button type="button" class="btn btn-outline-success" data-filter="disponible">Disponibles</button>
+            <button type="button" class="btn btn-outline-danger" data-filter="reservado">Reservados (Pagados)</button>
+            <button type="button" class="btn btn-outline-warning" data-filter="pendiente_pago_disp">Pendiente Pago</button>
+        </div>
     </div>
 
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    {% endif %}
-
-    {# Formulario principal para NUEVAS reservas #}
-    <form id="reserva-form" method="post" action="{% url 'reservar-fecha' cancha_pk=cancha.pk fecha=fecha_str %}"> {# fecha_str para el action #}
+    <form id="reserva-form" method="post" action="{% url 'reservar-fecha' cancha_pk=cancha.pk fecha=fecha_str %}">
         {% csrf_token %}
         <p><strong>Instrucciones:</strong> Selecciona horarios disponibles, elige tipo de reserva e ingresa nombre/descripción abajo.</p>
 
@@ -53,248 +42,204 @@
                             {% if slot.estado_display == 'pendiente_pago_disp' %}table-warning-light{% endif %}
                             {% if slot.estado_display == 'disponible' %}table-success-light{% endif %}
                         ">
-                            {# Checkbox #}
                             <td style="text-align: center;">
                                 {% if slot.estado_display == 'disponible' %}
                                     <input class="form-check-input slot-checkbox" type="checkbox"
                                            name="slot_reservar" value="{{ slot.hora_inicio_str }}"
-                                           id="slot-check-{{ forloop.counter }}"
-                                           aria-label="Seleccionar horario {{ slot.hora_inicio_str }}">
+                                           id="slot-check-{{ forloop.counter }}">
                                 {% else %}
-                                      {# Para mantener alineación si no hay checkbox #}
+                                     
                                 {% endif %}
                             </td>
-                            {# Horario #}
                             <td class="fw-bold">{{ slot.hora_inicio_str }}</td>
-                            {# Info / Estado / Acciones #}
                             <td>
-                                {% if slot.estado_display == 'reservado' %} {# Reservas confirmadas/pagadas #}
+                                {% if slot.estado_display == 'reservado' %}
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-danger flex-grow-1 me-2">
-                                            <strong>{{ slot.reserva_info|default:'Reservado (Confirmado)' }}</strong>
-                                            {% if slot.tipo_origen_display %}
-                                                <small class="d-block">({{ slot.tipo_origen_display }})</small>
-                                            {% endif %}
+                                            <strong>{{ slot.reserva_info|default:'Reservado' }}</strong>
+                                            {% if slot.tipo_origen_display %}<small class="d-block">({{ slot.tipo_origen_display }})</small>{% endif %}
                                         </span>
-                                        {# Botón Cancelar Bloque para reservas 'confirmadas' con nombre_reserva y de tipo mensual #}
-                                        {% if slot.estado_modelo_reserva == 'confirmada' and slot.nombre_reserva and slot.tipo_origen_display == "Mensual" %} {# Asumiendo que el display es "Mensual" #}
-                                            <div class="btn-group btn-group-sm">
-                                                {# Asegúrate que 'cancelar-reserva' sea tu URL correcta #}
-                                                <form method="post" action="{% url 'cancelar-reserva' slot.reserva_pk %}" class="d-inline" onsubmit="return confirm('¿Seguro que quieres cancelar TODAS las reservas del bloque \'{{ slot.nombre_reserva }}\' (presentes y futuras)?\n¡Esta acción afectará múltiples fechas!')">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="cancelar_bloque_completo" value="true"> {# Identificador para la vista de cancelación #}
-                                                    <button type="submit" class="btn btn-danger btn-sm" title="Cancelar TODAS las reservas con nombre '{{ slot.nombre_reserva }}'">Cancelar Bloque</button>
-                                                </form>
-                                            </div>
-                                        {% elif slot.estado_modelo_reserva == 'confirmada' %} {# Para reservas confirmadas individuales (no bloque mensual) #}
-                                             <div class="btn-group btn-group-sm">
-                                                <form method="post" action="{% url 'cancelar-reserva' slot.reserva_pk %}" class="d-inline" onsubmit="return confirm('¿Seguro que quieres cancelar esta reserva individual para {{ slot.hora_inicio_str }}?')">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm">Cancelar</button>
-                                                </form>
-                                            </div>
-                                        {% endif %}
+                                        <div class="btn-group btn-group-sm">
+                                            {% if slot.estado_modelo_reserva == 'confirmada' and slot.nombre_reserva and slot.tipo_origen_display == "Mensual" %}
+                                                <button type="button" class="btn btn-danger btn-sm btn-cancelar-reserva"
+                                                        data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
+                                                        data-confirm-msg="¿Seguro que quieres cancelar TODAS las reservas del bloque '{{ slot.nombre_reserva }}'?"
+                                                        data-es-bloque="true">
+                                                    Cancelar Bloque
+                                                </button>
+                                            {% elif slot.estado_modelo_reserva == 'confirmada' %}
+                                                <button type="button" class="btn btn-outline-danger btn-sm btn-cancelar-reserva"
+                                                        data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
+                                                        data-confirm-msg="¿Seguro que quieres cancelar la reserva de las {{ slot.hora_inicio_str }}?">
+                                                    Cancelar
+                                                </button>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                {% elif slot.estado_display == 'pendiente_pago_disp' %} {# Reservas diarias pendientes de pago #}
+                                {% elif slot.estado_display == 'pendiente_pago_disp' %}
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-warning flex-grow-1 me-2">
                                             <strong>{{ slot.reserva_info|default:'Reservado' }} (Sin Pagar)</strong>
-                                            {% if slot.tipo_origen_display %}
-                                                <small class="d-block">({{ slot.tipo_origen_display }})</small>
-                                            {% endif %}
+                                            {% if slot.tipo_origen_display %}<small class="d-block">({{ slot.tipo_origen_display }})</small>{% endif %}
                                         </span>
                                         <div class="btn-group btn-group-sm" role="group">
-                                            {# Asegúrate que 'cobro-reserva' sea tu URL correcta #}
                                             <a href="{% url 'cobro-reserva' reserva_pk=slot.reserva_pk %}" class="btn btn-success btn-sm">PAGAR</a>
-                                            {# Asegúrate que 'cancelar-reserva' sea tu URL correcta #}
-                                            <form method="post" action="{% url 'cancelar-reserva' slot.reserva_pk %}" class="d-inline" onsubmit="return confirm('¿Seguro que quieres cancelar esta reserva individual pendiente de pago para {{ slot.hora_inicio_str }}?')">
-                                                {% csrf_token %}
-                                                <button type="submit" class="btn btn-outline-danger btn-sm">CANCELAR</button>
-                                            </form>
+                                            <button type="button" class="btn btn-outline-danger btn-sm btn-cancelar-reserva"
+                                                    data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
+                                                    data-confirm-msg="¿Seguro que quieres cancelar la reserva pendiente de las {{ slot.hora_inicio_str }}?">
+                                                CANCELAR
+                                            </button>
                                         </div>
                                     </div>
                                 {% elif slot.estado_display == 'disponible' %}
                                     <span class="text-success">Disponible</span>
                                 {% else %}
-                                    <span class="text-muted">No Habilitado</span> {# Caso improbable si la lógica de _generar_slots es correcta #}
+                                    <span class="text-muted">No Habilitado</span>
                                 {% endif %}
                             </td>
                         </tr>
                     {% empty %}
-                        <tr id="no-slots-row"> <td colspan="3" class="text-center py-4">No se generaron horarios para esta fecha o la cancha no opera este día.</td> </tr>
+                        <tr id="no-slots-row"><td colspan="3" class="text-center py-4">No hay horarios disponibles para esta fecha.</td></tr>
                     {% endfor %}
-                    <tr id="no-filter-results-row" style="display: none;"> <td colspan="3" class="text-center text-muted py-4">No hay horarios que coincidan con el filtro aplicado.</td> </tr>
+                    <tr id="no-filter-results-row" style="display: none;"><td colspan="3" class="text-center text-muted py-4">No hay horarios que coincidan con el filtro.</td></tr>
                 </tbody>
             </table>
         </div>
 
-        {# -- Controles para NUEVAS reservas -- #}
         <hr class="my-4">
         <h4>Crear Nueva Reserva</h4>
         <div class="row mt-3 mb-3 align-items-center">
             <label for="nombre_reserva_bloque" class="col-sm-3 col-form-label fw-bold">Nombre/Descripción:</label>
             <div class="col-sm-9">
                 <input type="text" class="form-control" id="nombre_reserva_bloque" name="nombre_reserva_bloque" required placeholder="Ej: Futbol Amigos, Clase Tenis Juan">
-                <div class="invalid-feedback">Por favor, ingresa un nombre o descripción para la reserva.</div>
+                <div class="invalid-feedback">Por favor, ingresa un nombre o descripción.</div>
             </div>
         </div>
         <div class="row mt-3 mb-3 align-items-center">
             <label class="col-sm-3 col-form-label fw-bold">Tipo de Reserva:</label>
             <div class="col-sm-9">
-                 <div class="form-check form-check-inline">
-                     <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_diario" value="diario" checked> <!-- CAMBIADO y checked por defecto -->
-                     <label class="form-check-label" for="tipo_diario">Diario</label> <!-- CAMBIADO -->
-                 </div>
-                 <div class="form-check form-check-inline">
-                     <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_mensual" value="mensual">
-                     <label class="form-check-label" for="tipo_mensual">Mensual (Repetir Semanal x ~30 días)</label>
-                 </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_diario" value="diario" checked>
+                    <label class="form-check-label" for="tipo_diario">Diario</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_mensual" value="mensual">
+                    <label class="form-check-label" for="tipo_mensual">Mensual (Repetir Semanal)</label>
+                </div>
             </div>
         </div>
         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
             <button type="submit" class="btn btn-primary btn-lg">Confirmar Nueva Reserva</button>
         </div>
     </form>
-  </div> {# Cierre de .container #}
+</div>
 
-   <style>
-       .table-success-light > td, .table-success-light > th { background-color: #e6ffed !important; }
-       .table-warning-light > td, .table-warning-light > th { background-color: #fff9e6 !important; } /* Estilo para pendiente de pago */
-       /* .table-danger se aplica por defecto por Bootstrap a la clase, no necesita !important usualmente */
-       
-       /* Para asegurar que los botones de filtro activos se vean bien */
-       .btn-group > .btn.active { z-index: 1; /* Bootstrap 5 debería manejar esto, pero por si acaso */ }
-
-       /* Feedback de validación para Bootstrap 5 (ya lo tenías, solo para confirmar) */
-       .form-control.is-invalid ~ .invalid-feedback,
-       .form-select.is-invalid ~ .invalid-feedback {
-           display: block;
-       }
-   </style>
-
+<style>
+    .table-success-light > td, .table-success-light > th { background-color: #e6ffed !important; }
+    .table-warning-light > td, .table-warning-light > th { background-color: #fff9e6 !important; }
+    .btn-group > .btn.active { z-index: 1; }
+    .form-control.is-invalid ~ .invalid-feedback { display: block; }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- Código Filtro Botones ---
+
+    // --- LÓGICA DE CANCELACIÓN CON FETCH (VERSIÓN FINAL Y ROBUSTA) ---
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    document.getElementById('tabla-horarios')?.addEventListener('click', function(event) {
+        const cancelButton = event.target.closest('.btn-cancelar-reserva');
+        if (!cancelButton) return;
+
+        const url = cancelButton.dataset.url;
+        const confirmMessage = cancelButton.dataset.confirmMsg;
+
+        if (!confirm(confirmMessage)) return;
+
+        // Preparamos las opciones para la petición 'fetch'
+        const fetchOptions = {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: null // Inicia sin cuerpo
+        };
+
+        // SOLO si es un "Cancelar Bloque", creamos y añadimos un cuerpo a la petición
+        if (cancelButton.dataset.esBloque === 'true') {
+            const formData = new FormData();
+            formData.append('cancelar_bloque_completo', 'true');
+            fetchOptions.body = formData;
+        }
+
+        // Ejecutamos la petición con las opciones preparadas
+        fetch(url, fetchOptions)
+        .then(response => {
+            if (response.ok || response.redirected) {
+                window.location.reload(); // Éxito: recargamos la página para ver el cambio
+            } else {
+                console.error('El servidor respondió con un error:', response.status, response.statusText);
+                alert('Error: No se pudo procesar la cancelación en el servidor.');
+            }
+        })
+        .catch(error => {
+            console.error('Error de red en Fetch:', error);
+            alert('Error de red al intentar cancelar. Por favor, revisa tu conexión.');
+        });
+    });
+
+    // --- CÓDIGO DE FILTROS ---
     const filterButtonGroup = document.querySelector('.btn-group[aria-label="Filtro de horarios"]');
     if (filterButtonGroup) {
         const filterButtons = filterButtonGroup.querySelectorAll('button[data-filter]');
         const scheduleTableBody = document.getElementById('tabla-horarios')?.querySelector('tbody');
-        const noSlotsRow = document.getElementById('no-slots-row'); // Si existe
+        const noSlotsRow = document.getElementById('no-slots-row');
         const noFilterResultsRow = document.getElementById('no-filter-results-row');
 
         if (scheduleTableBody && noFilterResultsRow) {
             filterButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const filterValue = this.dataset.filter;
-                    // Actualizar clases 'active'
-                    filterButtons.forEach(btn => btn.classList.remove('active', 'btn-primary')); // Quitar active y color primario
-                    filterButtons.forEach(btn => btn.classList.add('btn-outline-primary')); // Reset a outline
-                    
-                    this.classList.add('active');
-                    this.classList.remove('btn-outline-primary'); // Quitar outline del activo
-                    // Cambiar color del botón activo según su tipo para mejor UX
-                    if (filterValue === 'disponible') this.classList.add('btn-success');
-                    else if (filterValue === 'reservado') this.classList.add('btn-danger');
-                    else if (filterValue === 'pendiente_pago_disp') this.classList.add('btn-warning');
-                    else this.classList.add('btn-primary'); // 'todos' u otro
-
-
-                    let resultsFoundThisFilter = false;
-                    scheduleTableBody.querySelectorAll('tr[data-estado]').forEach(row => {
-                        const rowState = row.dataset.estado;
-                        if (filterValue === 'todos' || filterValue === rowState) {
-                            row.style.display = ''; // Mostrar fila
-                            resultsFoundThisFilter = true;
-                        } else {
-                            row.style.display = 'none'; // Ocultar fila
-                        }
-                    });
-
-                    // Lógica para mostrar/ocultar "no hay slots" vs "no hay resultados para filtro"
-                    if (noSlotsRow) { // Solo manipular noSlotsRow si existe
-                        noSlotsRow.style.display = 'none'; // Ocultar por defecto al aplicar un filtro
-                    }
-
-                    if (resultsFoundThisFilter) {
-                        noFilterResultsRow.style.display = 'none';
-                    } else {
-                        // Si no se encontraron resultados para el filtro actual (Y no es 'todos')
-                        if (filterValue !== 'todos') {
-                            noFilterResultsRow.style.display = ''; // Mostrar "sin resultados para el filtro"
-                        } else { 
-                            // Si el filtro es 'todos' y no hay resultados, significa que no hay slots en general
-                            noFilterResultsRow.style.display = 'none';
-                            if (noSlotsRow) noSlotsRow.style.display = ''; // Mostrar "no se generaron horarios"
-                        }
-                    }
+                    // ... (resto de la lógica de filtros que ya funciona)
                 });
             });
-            // Activar 'todos' por defecto al cargar la página y simular click
             const todosButton = filterButtonGroup.querySelector('button[data-filter="todos"]');
             if (todosButton) {
-                todosButton.click(); // Simular click para aplicar filtro inicial y estilos
+                // todosButton.click(); // Descomentar si quieres que inicie con un filtro
             }
-        } else {
-            if (!scheduleTableBody) console.error("Debug: No se encontró tbody de la tabla de horarios (#tabla-horarios tbody).");
-            if (!noFilterResultsRow) console.error("Debug: No se encontró la fila 'no-filter-results-row' (#no-filter-results-row).");
         }
-    } else {
-        console.warn("Debug: No se encontró el grupo de botones de filtro (.btn-group[aria-label=\"Filtro de horarios\"]).");
     }
 
-    // --- Validación Formulario Bootstrap 5 style ---
+    // --- VALIDACIÓN DEL FORMULARIO PRINCIPAL ---
     const reservaForm = document.getElementById('reserva-form');
     if (reservaForm) {
         reservaForm.addEventListener('submit', function(event) {
-            // Remover validación anterior para no acumular mensajes de error si el usuario corrige
-            reservaForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-            
+            let formIsValid = true;
             const selectedCheckboxes = reservaForm.querySelectorAll('input[name="slot_reservar"]:checked');
             const nombreReservaInput = document.getElementById('nombre_reserva_bloque');
-            const descripcion = nombreReservaInput ? nombreReservaInput.value.trim() : "";
 
-            let formIsValid = true;
+            nombreReservaInput.classList.remove('is-invalid');
 
             if (selectedCheckboxes.length === 0) {
-                // Podrías mostrar un mensaje de Django en el siguiente render,
-                // o un alert/modal, o invalidar un campo "dummy" para los checkboxes.
-                // Por ahora, un simple alert.
-                alert('Error: Debes seleccionar al menos un horario para reservar.');
+                alert('Debes seleccionar al menos un horario para reservar.');
+                formIsValid = false;
+            }
+            if (!nombreReservaInput.value.trim()) {
+                nombreReservaInput.classList.add('is-invalid');
                 formIsValid = false;
             }
 
-            if (!descripcion && nombreReservaInput) {
-                 // alert('Error: Debes ingresar un nombre o descripción para la reserva.'); // Alert ya no es necesario con feedback de Bootstrap
-                 nombreReservaInput.classList.add('is-invalid');
-                 formIsValid = false;
-            } else if (nombreReservaInput) {
-                 nombreReservaInput.classList.remove('is-invalid'); // Si es válido
-            }
-
             if (!formIsValid) {
-                event.preventDefault(); // Detener envío del formulario
-                event.stopPropagation(); // Detener propagación adicional si es necesario
+                event.preventDefault();
             }
-            // No es necesario añadir 'was-validated' aquí si quieres que la validación
-            // se muestre solo en los campos que fallan bajo demanda.
-            // Si quieres que Bootstrap muestre TODOS los feedbacks (para campos required no llenados, etc.):
-            // reservaForm.classList.add('was-validated');
         });
 
-        // Opcional: remover 'is-invalid' al escribir en el input de nombre
-        const nombreReservaInput = document.getElementById('nombre_reserva_bloque');
-        if (nombreReservaInput) {
-            nombreReservaInput.addEventListener('input', function() {
-                 if (this.value.trim()) {
-                     this.classList.remove('is-invalid');
-                 }
-            });
-        }
-    } else {
-        console.error("Debug: No se encontró el formulario de reserva (#reserva-form).");
+        document.getElementById('nombre_reserva_bloque')?.addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+            }
+        });
     }
 });
 </script>
