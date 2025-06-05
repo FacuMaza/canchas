@@ -1,58 +1,54 @@
-{# templates/base.html #}
+{% load static %}
+{% load auth_extras %}
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Gestión de Canchas{% endblock %}</title>
+  
+  {# =================================================================== #}
+  {# ============ INICIO: CÓDIGO PARA VISTA PREVIA GENÉRICA ============ #}
+  {# =================================================================== #}
+
+  <!-- Título para la pestaña del navegador (Ej: "Login | FULL CANCHA") -->
+  <title>{% block title %}Gestión{% endblock %} | FULL CANCHA</title>
+
+  <!-- META TAGS DE OPEN GRAPH (PARA WHATSAPP, FACEBOOK, ETC.) -->
+
+  <!-- Título principal que se verá en WhatsApp -->
+  <meta property="og:title" content="FULL CANCHA" />
+  
+  <!-- Descripción solicitada -->
+  <meta property="og:description" content="Reserva y autogestión de canchas" />
+  
+  <!-- Imagen que se mostrará (tu foto-login.jpeg) -->
+  <!-- La URL se genera dinámicamente para funcionar en cualquier dominio de cliente -->
+  <meta property="og:image" content="{{ request.build_absolute_uri(static('img/foto-login.jpeg')) }}" />
+  
+  <!-- URL de la página actual, generada dinámicamente -->
+  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+  
+  <!-- Tipo de contenido -->
+  <meta property="og:type" content="website" />
+
+  {# =================================================================== #}
+  {# ============== FIN: CÓDIGO PARA VISTA PREVIA GENÉRICA ============= #}
+  {# =================================================================== #}
+
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
   <!-- Flatpickr CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  {% load static %}
-  {% load auth_extras %} {# <-- Carga de los filtros/tags personalizados #}
-
-  {# Bloque para cargar CSS específico de cada página (como forms.css en login.html) #}
+  
   {% block extra_css %}{% endblock %}
 
   <style>
-      /* --- Configuración Global --- */
-      :root {
-          /* === ¡¡¡ATENCIÓN CRÍTICA!!! === */
-          /* Reemplaza '56px' con la altura EXACTA de tu navbar fixed-top */
-          /* ¡Mídela con las herramientas de desarrollador (F12)! */
-          /* Este valor DEBE ser el mismo que en forms.css */
-          --navbar-height: 56px; /* <--- ¡¡¡AJUSTA ESTE VALOR!!! */
-      }
-
-      html, body {
-          height: 100%; /* Asegura que html y body puedan ocupar toda la altura */
-      }
-
-      body {
-          /* Espacio superior para la navbar fija */
-          padding-top: var(--navbar-height);
-          /* Configura el body como contenedor flex vertical */
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh; /* Asegura que el body ocupe al menos toda la altura de la ventana */
-      }
-
-      main.container {
-          /* Permite que el 'main' crezca para llenar el espacio restante */
-          flex-grow: 1;
-          /* Configura 'main' como contenedor flex vertical para su contenido */
-          display: flex;
-          flex-direction: column;
-          /* Padding superior opcional, puede eliminarse si el wrapper ya lo tiene */
-          padding-top: 1rem; /* Ajusta o elimina si es necesario */
-          padding-bottom: 1rem; /* Añade espacio inferior */
-      }
-
-      /* --- Otros estilos --- */
+      :root { --navbar-height: 56px; }
+      html, body { height: 100%; }
+      body { padding-top: var(--navbar-height); display: flex; flex-direction: column; min-height: 100vh; }
+      main.container { flex-grow: 1; display: flex; flex-direction: column; padding-top: 1rem; padding-bottom: 1rem; }
       .alert { margin-top: 1rem; }
       .flatpickr-calendar.inline { margin-bottom: 1rem; }
-      /* No se necesita margen inferior en la navbar si usamos padding-top en body */
   </style>
 
 </head>
@@ -60,90 +56,58 @@
 
   <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
     <div class="container-fluid">
-      {# --- INICIO: Condición para mostrar la marca --- #}
-      {# Solo muestra la marca si NO estamos en la página de login #}
       {% if request.resolver_match.view_name != 'login' %}
         <a class="navbar-brand" href="{% if user.is_authenticated %}{% url 'cancha-list' %}{% else %}{% url 'login' %}{% endif %}">Gestión Canchas</a>
-      {% else %}
-         {# Opcional: Span vacío para mantener el espacio si se desea #}
-         {# <span class="navbar-brand"></span> #}
       {% endif %}
-      {# --- FIN: Condición para mostrar la marca --- #}
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarCollapse">
-        {# Menú principal - SOLO visible si el usuario está autenticado #}
         {% if user.is_authenticated %}
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
-             <li class="nav-item">
+            <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.view_name == 'cancha-list' %}active{% endif %}" href="{% url 'cancha-list' %}">Canchas</a>
             </li>
             <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.view_name == 'venta_listar' %}active{% endif %}" href="{% url 'venta_registrar' %}">Ventas</a>
             </li>
             {% if user.is_superuser or user|has_group:"Admins" %}
-              <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.view_name == 'movimientos-list' %}active{% endif %}" href="{% url 'movimientos-list' %}">Movimientos</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.view_name == 'resumenes-view' %}active{% endif %}" href="{% url 'historial-view' %}">Resúmenes</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.view_name == 'stock_listar' %}active{% endif %}" href="{% url 'stock_listar' %}">Stock</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.view_name|slice:':5' == 'user-' %}active{% endif %}" href="{% url 'user-list' %}">Cuentas</a>
-              </li>
-              <li class="nav-item">
-                {# Marcar activo si la URL empieza con 'picadito-' #}
-                <a class="nav-link {% if request.resolver_match.url_name|slice:':9' == 'picadito-' %}active{% endif %}"
-                   href="{% url 'picadito-list' %}">Picaditos</a>
-              </li>
+              <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'movimientos-list' %}active{% endif %}" href="{% url 'movimientos-list' %}">Movimientos</a></li>
+              <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'resumenes-view' %}active{% endif %}" href="{% url 'historial-view' %}">Resúmenes</a></li>
+              <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'stock_listar' %}active{% endif %}" href="{% url 'stock_listar' %}">Stock</a></li>
+              <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name|slice:':5' == 'user-' %}active{% endif %}" href="{% url 'user-list' %}">Cuentas</a></li>
+              <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name|slice:':9' == 'picadito-' %}active{% endif %}" href="{% url 'picadito-list' %}">Picaditos</a></li>
             {% endif %}
           </ul>
-        {% endif %} {# Fin de if user.is_authenticated para el menú principal #}
-
-        {# Sección derecha de la Navbar: Login/Logout #}
+        {% endif %} 
         <ul class="navbar-nav ms-auto mb-2 mb-md-0">
           {% if user.is_authenticated %}
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Hola, {{ user.username }}
-                {% with user.groups.first as group %}
-                    {% if group %}<span class="badge bg-secondary ms-1">{{ group.name }}</span>{% endif %}
-                {% endwith %}
-                 {% if user.is_superuser %}<span class="badge bg-danger ms-1">Superuser</span>{% endif %}
+                {% with user.groups.first as group %}{% if group %}<span class="badge bg-secondary ms-1">{{ group.name }}</span>{% endif %}{% endwith %}
+                {% if user.is_superuser %}<span class="badge bg-danger ms-1">Superuser</span>{% endif %}
               </a>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
                 <li>
-                  <form id="logout-form" method="post" action="{% url 'logout' %}" style="display: none;">
-                      {% csrf_token %}
-                  </form>
-                  <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                      Cerrar Sesión
-                  </a>
+                  <form id="logout-form" method="post" action="{% url 'logout' %}" style="display: none;">{% csrf_token %}</form>
+                  <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Cerrar Sesión</a>
                 </li>
               </ul>
             </li>
           {% else %}
             <li class="nav-item">
-              {# El enlace activo en la navbar ya no es necesario si el título se oculta #}
-              {# <a class="nav-link {% if request.resolver_match.view_name == 'login' %}active{% endif %}" href="{% url 'login' %}?next={{ request.path }}"> #}
-              <a class="nav-link" href="{% url 'login' %}?next={{ request.path }}">
-                Iniciar Sesión
-              </a>
+              <a class="nav-link" href="{% url 'login' %}?next={{ request.path }}">Iniciar Sesión</a>
             </li>
           {% endif %}
         </ul>
-      </div> {# Fin collapse navbar-collapse #}
-    </div> {# Fin container-fluid #}
+      </div>
+    </div>
   </nav>
 
-  {# El contenedor principal ahora es flex y crecerá para llenar el espacio #}
-  <main class="container"> {# Eliminado pt-3, el wrapper interno puede manejar su padding #}
+  <main class="container">
     {% if messages %}
-      <div class="messages mt-3"> {# Mantenemos un margen superior para los mensajes #}
+      <div class="messages mt-3">
         {% for message in messages %}
           <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
             {{ message }}
@@ -152,18 +116,12 @@
         {% endfor %}
       </div>
     {% endif %}
-
-    {# El block content ahora está dentro de un main configurado con flexbox #}
-    {% block content %}
-    <!-- El contenido específico de cada página irá aquí -->
-    {% endblock %}
+    {% block content %}{% endblock %}
   </main>
 
-  <!-- Scripts JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
   {% block extra_js %}{% endblock %}
-
 </body>
 </html>
