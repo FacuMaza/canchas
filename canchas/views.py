@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
 from collections import Counter
 import io
 import locale
+from django.utils import formats
 from django.http import HttpResponse # Ya deberías tener este
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -331,31 +332,23 @@ class ReservaExitosaView(TemplateView):
         
         reserva_info = self.request.session.pop('reserva_exitosa_info', None)
         
+        # URL genérica por si algo falla
         wa_params_genericos = {'text': 'Hola, acabo de realizar una solicitud de reserva y quiero confirmar los detalles. Gracias.'}
         context['whatsapp_url'] = f"https://wa.me/5493875908958?{urlencode(wa_params_genericos)}"
         
         if reserva_info:
             try:
-                # --- INICIO DE LA CORRECCIÓN ---
-                # Intentamos establecer el locale en español. Es posible que necesites
-                # instalar el paquete de idioma en tu sistema operativo si esto falla.
-                # Para Windows: 'es-ES' o 'Spanish_Spain.1252'
-                # Para Linux/macOS: 'es_ES.UTF-8'
-                try:
-                    locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-                except locale.Error:
-                    try:
-                        locale.setlocale(locale.LC_TIME, 'es-ES')
-                    except locale.Error:
-                        print("ADVERTENCIA: No se pudo establecer el locale a español. Las fechas saldrán en inglés.")
-                # --- FIN DE LA CORRECCIÓN ---
-                
                 nombre = reserva_info.get('nombre_cliente')
                 fecha_obj = date.fromisoformat(reserva_info.get('fecha_reserva'))
                 horas = reserva_info.get('horas_reservadas', [])
                 
-                # strftime ahora debería funcionar correctamente en español
-                fecha_str = fecha_obj.strftime('%A, %d de %B').capitalize()
+                # --- AQUÍ ESTÁ EL CAMBIO MÁGICO ---
+                # Usa formats.date_format de Django, que respeta tu settings.py (LANGUAGE_CODE='es-ar')
+                # El formato es el mismo que usabas en strftime.
+                fecha_str = formats.date_format(fecha_obj, "l, d \d\e F").capitalize()
+                # El \d\e es un truco para que Django no interprete la 'd' de "de" como un día.
+                # --- FIN DEL CAMBIO MÁGICO ---
+
                 horas_str = ", ".join(horas)
                 
                 mensaje_texto = (
@@ -368,9 +361,7 @@ class ReservaExitosaView(TemplateView):
                 context['reserva_confirmada'] = True
 
             except Exception as e:
-                # Capturamos CUALQUIER error para evitar el Error 500
                 print(f"ERROR CRÍTICO al procesar datos para URL de WhatsApp: {e}")
-                # Si falla, se usará la URL genérica definida al principio.
 
         context['titulo_pagina'] = "Reserva Registrada"
         return context
