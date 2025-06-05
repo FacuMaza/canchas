@@ -6,34 +6,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
-  {# =================================================================== #}
-  {# ============ INICIO: CÓDIGO PARA VISTA PREVIA GENÉRICA ============ #}
-  {# =================================================================== #}
-
-  <!-- Título para la pestaña del navegador (Ej: "Login | FULL CANCHA") -->
   <title>{% block title %}Gestión{% endblock %} | FULL CANCHA</title>
 
-  <!-- META TAGS DE OPEN GRAPH (PARA WHATSAPP, FACEBOOK, ETC.) -->
+  {# =================================================================== #}
+  {# =========== INICIO: CÓDIGO FINAL PARA VISTA PREVIA ============ #}
+  {# =================================================================== #}
 
-  <!-- Título principal que se verá en WhatsApp -->
+  <!-- META TAGS DE OPEN GRAPH (PARA WHATSAPP, FACEBOOK, ETC.) -->
   <meta property="og:title" content="FULL CANCHA" />
-  
-  <!-- Descripción solicitada -->
   <meta property="og:description" content="Reserva y autogestión de canchas" />
   
-  <!-- Imagen que se mostrará (tu foto-login.jpeg) -->
-  <!-- La URL se genera dinámicamente para funcionar en cualquier dominio de cliente -->
-  <meta property="og:image" content="{{ request.build_absolute_uri(static('img/foto-login.jpeg')) }}" />
+  <!--
+    CORRECCIÓN FINAL:
+    Construimos la URL absoluta pieza por pieza, ya que Django no permite
+    llamadas a métodos con argumentos en las plantillas.
+  -->
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/foto-login.jpeg' %}" />
   
-  <!-- URL de la página actual, generada dinámicamente -->
   <meta property="og:url" content="{{ request.build_absolute_uri }}" />
-  
-  <!-- Tipo de contenido -->
   <meta property="og:type" content="website" />
 
   {# =================================================================== #}
-  {# ============== FIN: CÓDIGO PARA VISTA PREVIA GENÉRICA ============= #}
+  {# ============ FIN: CÓDIGO FINAL PARA VISTA PREVIA ============== #}
   {# =================================================================== #}
+
 
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
