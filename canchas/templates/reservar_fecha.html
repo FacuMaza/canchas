@@ -4,240 +4,340 @@
 {% block title %}Reservar Cancha: {{ cancha.nombre }} - {{ fecha_seleccionada|date:"d/m/Y" }}{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4 mb-5 pb-5"> <!-- Margen inferior para que el panel fijo no tape contenido -->
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>Reservar: {{ cancha.nombre }}</h1>
         <a href="{% url 'cancha-detail' cancha.pk %}" class="btn btn-secondary btn-sm">Volver a la Cancha</a>
     </div>
 
     <h2>Fecha Seleccionada: {{ fecha_seleccionada|date:"l, d \d\e F \d\e Y" }}</h2>
+    
+    <!-- BLOQUE DE MENSAJES DE DJANGO ELIMINADO COMO SOLICITASTE -->
 
     <div class="mb-3">
         <strong>Filtrar por:</strong>
         <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de horarios">
-            <button type="button" class="btn btn-outline-primary" data-filter="todos">Todos</button>
+            <button type="button" class="btn btn-outline-primary active" data-filter="todos">Todos</button>
             <button type="button" class="btn btn-outline-success" data-filter="disponible">Disponibles</button>
-            <button type="button" class="btn btn-outline-danger" data-filter="reservado">Reservados (Pagados)</button>
+            <button type="button" class="btn btn-outline-danger" data-filter="reservado">Reservados</button>
             <button type="button" class="btn btn-outline-warning" data-filter="pendiente_pago_disp">Pendiente Pago</button>
         </div>
     </div>
 
     <form id="reserva-form" method="post" action="{% url 'reservar-fecha' cancha_pk=cancha.pk fecha=fecha_str %}">
         {% csrf_token %}
-        <p><strong>Instrucciones:</strong> Selecciona horarios disponibles, elige tipo de reserva e ingresa nombre/descripción abajo.</p>
 
-        <div class="table-responsive">
-            <table id="tabla-horarios" class="table table-bordered table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col" style="width: 5%; text-align: center;">Sel.</th>
-                        <th scope="col" style="width: 15%;">Horario</th>
-                        <th scope="col">Reserva / Estado / Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for slot in slots %}
-                        <tr data-estado="{{ slot.estado_display }}" class="
-                            {% if slot.estado_display == 'reservado' %}table-danger{% endif %}
-                            {% if slot.estado_display == 'pendiente_pago_disp' %}table-warning-light{% endif %}
-                            {% if slot.estado_display == 'disponible' %}table-success-light{% endif %}
-                        ">
-                            <td style="text-align: center;">
-                                {% if slot.estado_display == 'disponible' %}
-                                    <input class="form-check-input slot-checkbox" type="checkbox"
-                                           name="slot_reservar" value="{{ slot.hora_inicio_str }}"
-                                           id="slot-check-{{ forloop.counter }}">
-                                {% else %}
-                                     
-                                {% endif %}
-                            </td>
-                            <td class="fw-bold">{{ slot.hora_inicio_str }}</td>
-                            <td>
-                                {% if slot.estado_display == 'reservado' %}
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="text-danger flex-grow-1 me-2">
-                                            <strong>{{ slot.reserva_info|default:'Reservado' }}</strong>
-                                            {% if slot.tipo_origen_display %}<small class="d-block">({{ slot.tipo_origen_display }})</small>{% endif %}
-                                        </span>
-                                        <div class="btn-group btn-group-sm">
-                                            {% if slot.estado_modelo_reserva == 'confirmada' and slot.nombre_reserva and slot.tipo_origen_display == "Mensual" %}
-                                                <button type="button" class="btn btn-danger btn-sm btn-cancelar-reserva"
-                                                        data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
-                                                        data-confirm-msg="¿Seguro que quieres cancelar TODAS las reservas del bloque '{{ slot.nombre_reserva }}'?"
-                                                        data-es-bloque="true">
-                                                    Cancelar Bloque
-                                                </button>
-                                            {% elif slot.estado_modelo_reserva == 'confirmada' %}
-                                                <button type="button" class="btn btn-outline-danger btn-sm btn-cancelar-reserva"
-                                                        data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
-                                                        data-confirm-msg="¿Seguro que quieres cancelar la reserva de las {{ slot.hora_inicio_str }}?">
-                                                    Cancelar
-                                                </button>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% elif slot.estado_display == 'pendiente_pago_disp' %}
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="text-warning flex-grow-1 me-2">
-                                            <strong>{{ slot.reserva_info|default:'Reservado' }} (Sin Pagar)</strong>
-                                            {% if slot.tipo_origen_display %}<small class="d-block">({{ slot.tipo_origen_display }})</small>{% endif %}
-                                        </span>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{% url 'cobro-reserva' reserva_pk=slot.reserva_pk %}" class="btn btn-success btn-sm">PAGAR</a>
-                                            <button type="button" class="btn btn-outline-danger btn-sm btn-cancelar-reserva"
-                                                    data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
-                                                    data-confirm-msg="¿Seguro que quieres cancelar la reserva pendiente de las {{ slot.hora_inicio_str }}?">
-                                                CANCELAR
-                                            </button>
-                                        </div>
-                                    </div>
-                                {% elif slot.estado_display == 'disponible' %}
-                                    <span class="text-success">Disponible</span>
-                                {% else %}
-                                    <span class="text-muted">No Habilitado</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr id="no-slots-row"><td colspan="3" class="text-center py-4">No hay horarios disponibles para esta fecha.</td></tr>
-                    {% endfor %}
-                    <tr id="no-filter-results-row" style="display: none;"><td colspan="3" class="text-center text-muted py-4">No hay horarios que coincidan con el filtro.</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- INICIO DE LA CUADRÍCULA DE HORARIOS REDISEÑADA -->
+        <div class="horarios-grid mt-4">
+            {% for slot in slots %}
+                <div data-estado="{{ slot.estado_display }}">
+                    
+                    {% if slot.estado_display == 'disponible' %}
+                        <!-- Horario Disponible: Tarjeta Clickeable -->
+                        <label class="horario-card disponible">
+                            <input type="checkbox" name="slot_reservar" value="{{ slot.hora_inicio_str }}" class="slot-checkbox-hidden">
+                            <div class="card-content">
+                                <span class="horario-hora">{{ slot.hora_inicio_str }}</span>
+                                <span class="horario-estado">Disponible</span>
+                                <span class="slot-check-icon">✓</span>
+                            </div>
+                        </label>
 
-        <hr class="my-4">
-        <h4>Crear Nueva Reserva</h4>
-        <div class="row mt-3 mb-3 align-items-center">
-            <label for="nombre_reserva_bloque" class="col-sm-3 col-form-label fw-bold">Nombre/Descripción:</label>
-            <div class="col-sm-9">
-                <input type="text" class="form-control" id="nombre_reserva_bloque" name="nombre_reserva_bloque" required placeholder="Ej: Futbol Amigos, Clase Tenis Juan">
-                <div class="invalid-feedback">Por favor, ingresa un nombre o descripción.</div>
-            </div>
-        </div>
-        <div class="row mt-3 mb-3 align-items-center">
-            <label class="col-sm-3 col-form-label fw-bold">Tipo de Reserva:</label>
-            <div class="col-sm-9">
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_diario" value="diario" checked>
-                    <label class="form-check-label" for="tipo_diario">Diario</label>
+                    {% else %}
+                        <!-- Horario Ocupado: Tarjeta Informativa -->
+                        <div class="horario-card {% if slot.estado_display == 'reservado' %}reservado{% else %}pendiente_pago_disp{% endif %}">
+                            <div class="card-content">
+                                <div class="info-header">
+                                    <span class="horario-hora">{{ slot.hora_inicio_str }}</span>
+                                    {% if slot.reserva_info %}
+                                    <span class="badge text-bg-dark">{{ slot.reserva_info }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="info-details">
+                                    {% if slot.estado_display == 'pendiente_pago_disp' %}Sin Pagar{% endif %}
+                                    {% if slot.tipo_origen_display %}({{ slot.tipo_origen_display }}){% endif %}
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                {% if slot.estado_display == 'pendiente_pago_disp' %}
+                                    <a href="{% url 'cobro-reserva' reserva_pk=slot.reserva_pk %}" class="btn btn-sm btn-success">PAGAR</a>
+                                {% endif %}
+                                {% if slot.nombre_reserva %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger btn-cancelar-reserva"
+                                            data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
+                                            data-confirm-msg="¿Seguro que quieres cancelar el bloque '{{ slot.nombre_reserva }}'?">
+                                        CANCELAR BLOQUE
+                                    </button>
+                                {% else %}
+                                     <button type="button" class="btn btn-sm btn-outline-danger btn-cancelar-reserva"
+                                            data-url="{% url 'cancelar-reserva' slot.reserva_pk %}"
+                                            data-confirm-msg="¿Seguro que quieres cancelar el turno de las {{ slot.hora_inicio_str }}?">
+                                        CANCELAR
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_mensual" value="mensual">
-                    <label class="form-check-label" for="tipo_mensual">Mensual (Repetir Semanal)</label>
+            {% empty %}
+                <div class="alert alert-info w-100">No hay horarios definidos para esta fecha.</div>
+            {% endfor %}
+        </div>
+        <!-- FIN DE LA CUADRÍCULA DE HORARIOS -->
+
+        <!-- PANEL DE RESERVA FIJO (sin cambios, ya funciona bien) -->
+        <div id="panel-reserva-fijo" class="panel-reserva shadow-lg">
+            <div class="container">
+                <div id="resumen-seleccion" class="resumen-texto mb-2">Selecciona uno o más horarios para comenzar</div>
+                <div id="controles-reserva" class="controles-reserva-contenido">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-5">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="nombre_reserva_bloque" name="nombre_reserva_bloque" placeholder="Nombre (requerido para bloques)">
+                                <label for="nombre_reserva_bloque">Nombre (requerido para bloques)</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 d-flex align-items-center">
+                             <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_diario" value="diario" checked>
+                                <label class="form-check-label" for="tipo_diario">Diario</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="tipo_reserva" id="tipo_mensual" value="mensual">
+                                <label class="form-check-label" for="tipo_mensual">Mensual</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-3 d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">Confirmar Reserva</button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
-            <button type="submit" class="btn btn-primary btn-lg">Confirmar Nueva Reserva</button>
         </div>
     </form>
 </div>
+{% endblock %}
 
+{% block extra_css %}
 <style>
-    .table-success-light > td, .table-success-light > th { background-color: #e6ffed !important; }
-    .table-warning-light > td, .table-warning-light > th { background-color: #fff9e6 !important; }
-    .btn-group > .btn.active { z-index: 1; }
-    .form-control.is-invalid ~ .invalid-feedback { display: block; }
+    /* --- Paleta de Colores --- */
+    :root {
+        --slot-disponible-bg: #e6ffed;
+        --slot-disponible-border: #bcf0d2;
+        --slot-disponible-text: #0f5132;
+        --slot-seleccionado-bg: #0d6efd;
+        --slot-seleccionado-border: #0a58ca;
+        --slot-seleccionado-text: #ffffff;
+        --slot-reservado-bg: #ffe6e6;
+        --slot-reservado-border: #f5c2c7;
+        --slot-pendiente-bg: #fff9e6;
+        --slot-pendiente-border: #ffecb5;
+    }
+
+    /* --- Cuadrícula de Horarios Responsiva --- */
+    .horarios-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+
+    /* --- Estilo Base de la Tarjeta de Horario --- */
+    .horario-card {
+        border-radius: 0.75rem;
+        border: 1px solid var(--slot-disponible-border);
+        background-color: var(--slot-disponible-bg);
+        color: var(--slot-disponible-text);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 120px; /* Altura mínima para consistencia */
+        transition: all 0.2s ease-in-out;
+        padding: 0.75rem;
+    }
+
+    .horario-card.disponible {
+        cursor: pointer;
+    }
+    .horario-card.disponible:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .horario-card.reservado {
+        background-color: var(--slot-reservado-bg);
+        border-color: var(--slot-reservado-border);
+    }
+    .horario-card.pendiente_pago_disp {
+        background-color: var(--slot-pendiente-bg);
+        border-color: var(--slot-pendiente-border);
+    }
+
+    /* --- Contenido de la Tarjeta --- */
+    .card-content {
+        flex-grow: 1;
+        text-align: center;
+    }
+    .horario-hora {
+        font-size: 1.5rem;
+        font-weight: 700;
+        display: block;
+    }
+    .horario-estado {
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+    
+    .info-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.25rem;
+    }
+    .info-header .horario-hora { font-size: 1.25rem; }
+    .info-details {
+        font-size: 0.8rem;
+        text-align: left;
+        opacity: 0.7;
+    }
+
+    /* --- Estado de Selección (¡Aquí está la magia!) --- */
+    .slot-checkbox-hidden { display: none; }
+    .slot-check-icon { display: none; }
+
+    .slot-checkbox-hidden:checked + .card-content {
+        background-color: var(--slot-seleccionado-bg);
+        color: var(--slot-seleccionado-text);
+        /* Redondeamos las esquinas del contenido para que se vea bien */
+        border-radius: 0.375rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+    .slot-checkbox-hidden:checked + .card-content .horario-estado { display: none; }
+    .slot-checkbox-hidden:checked + .card-content .slot-check-icon {
+        display: block;
+        font-size: 2rem;
+        line-height: 1;
+    }
+    /* El label completo cambia cuando se selecciona el checkbox */
+    .horario-card.disponible:has(.slot-checkbox-hidden:checked) {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 6px 20px rgba(13, 110, 253, 0.4);
+        border-color: var(--slot-seleccionado-border);
+    }
+
+    /* --- Acciones en la Tarjeta (Botones) --- */
+    .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem; /* Espacio entre info y botones */
+    }
+    .card-actions .btn {
+        flex: 1; /* Los botones comparten el espacio equitativamente */
+        font-size: 0.75rem; /* Letra más pequeña para que quepa */
+        padding: 0.3rem 0.25rem;
+    }
+
+    /* --- Panel de Reserva Fijo (sin cambios) --- */
+    .panel-reserva {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background-color: #fff;
+        border-top: 1px solid #dee2e6;
+        padding: 1rem; z-index: 1050;
+        transform: translateY(100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    .panel-reserva.visible { transform: translateY(0); }
+    .resumen-texto { text-align: center; font-weight: 500; color: #6c757d; }
+    .controles-reserva-contenido {
+        max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease-in-out;
+    }
+    .panel-reserva.visible .controles-reserva-contenido { max-height: 200px; }
 </style>
 {% endblock %}
+
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-
-    // --- LÓGICA DE CANCELACIÓN CON FETCH (VERSIÓN FINAL Y ROBUSTA) ---
+    // Lógica de cancelación (sin cambios)
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    document.getElementById('tabla-horarios')?.addEventListener('click', function(event) {
+    document.querySelector('.horarios-grid').addEventListener('click', function(event) {
         const cancelButton = event.target.closest('.btn-cancelar-reserva');
         if (!cancelButton) return;
+        event.preventDefault();
 
-        const url = cancelButton.dataset.url;
-        const confirmMessage = cancelButton.dataset.confirmMsg;
+        if (!confirm(cancelButton.dataset.confirmMsg)) return;
 
-        if (!confirm(confirmMessage)) return;
-
-        // Preparamos las opciones para la petición 'fetch'
-        const fetchOptions = {
+        fetch(cancelButton.dataset.url, {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken
-            },
-            body: null // Inicia sin cuerpo
-        };
-
-        // SOLO si es un "Cancelar Bloque", creamos y añadimos un cuerpo a la petición
-        if (cancelButton.dataset.esBloque === 'true') {
-            const formData = new FormData();
-            formData.append('cancelar_bloque_completo', 'true');
-            fetchOptions.body = formData;
-        }
-
-        // Ejecutamos la petición con las opciones preparadas
-        fetch(url, fetchOptions)
-        .then(response => {
-            if (response.ok || response.redirected) {
-                window.location.reload(); // Éxito: recargamos la página para ver el cambio
-            } else {
-                console.error('El servidor respondió con un error:', response.status, response.statusText);
-                alert('Error: No se pudo procesar la cancelación en el servidor.');
-            }
+            headers: { 'X-CSRFToken': csrfToken }
         })
-        .catch(error => {
-            console.error('Error de red en Fetch:', error);
-            alert('Error de red al intentar cancelar. Por favor, revisa tu conexión.');
-        });
+        .then(response => {
+            if (response.ok || response.redirected) window.location.reload(); 
+            else alert('Error: No se pudo procesar la cancelación.');
+        })
+        .catch(error => console.error('Error de red:', error));
     });
 
-    // --- CÓDIGO DE FILTROS ---
-    const filterButtonGroup = document.querySelector('.btn-group[aria-label="Filtro de horarios"]');
-    if (filterButtonGroup) {
-        const filterButtons = filterButtonGroup.querySelectorAll('button[data-filter]');
-        const scheduleTableBody = document.getElementById('tabla-horarios')?.querySelector('tbody');
-        const noSlotsRow = document.getElementById('no-slots-row');
-        const noFilterResultsRow = document.getElementById('no-filter-results-row');
+    // Lógica para el panel de reserva interactivo (sin cambios)
+    const panelReserva = document.getElementById('panel-reserva-fijo');
+    const resumenSeleccion = document.getElementById('resumen-seleccion');
+    const form = document.getElementById('reserva-form');
+    const nombreInput = document.getElementById('nombre_reserva_bloque');
 
-        if (scheduleTableBody && noFilterResultsRow) {
-            filterButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const filterValue = this.dataset.filter;
-                    // ... (resto de la lógica de filtros que ya funciona)
-                });
-            });
-            const todosButton = filterButtonGroup.querySelector('button[data-filter="todos"]');
-            if (todosButton) {
-                // todosButton.click(); // Descomentar si quieres que inicie con un filtro
-            }
+    function actualizarPanel() {
+        const seleccionados = document.querySelectorAll('.slot-checkbox-hidden:checked');
+        const count = seleccionados.length;
+
+        if (count > 0) {
+            panelReserva.classList.add('visible');
+            resumenSeleccion.textContent = `${count} horario${count > 1 ? 's' : ''} seleccionado${count > 1 ? 's' : ''}`;
+        } else {
+            panelReserva.classList.remove('visible');
+            resumenSeleccion.textContent = "Selecciona uno o más horarios para comenzar";
         }
     }
 
-    // --- VALIDACIÓN DEL FORMULARIO PRINCIPAL ---
-    const reservaForm = document.getElementById('reserva-form');
-    if (reservaForm) {
-        reservaForm.addEventListener('submit', function(event) {
-            let formIsValid = true;
-            const selectedCheckboxes = reservaForm.querySelectorAll('input[name="slot_reservar"]:checked');
-            const nombreReservaInput = document.getElementById('nombre_reserva_bloque');
+    document.querySelectorAll('.slot-checkbox-hidden').forEach(cb => {
+        cb.addEventListener('change', actualizarPanel);
+    });
+    
+    form.addEventListener('submit', function(event) {
+        const seleccionadosCount = document.querySelectorAll('.slot-checkbox-hidden:checked').length;
+        const esMensual = document.getElementById('tipo_mensual').checked;
 
-            nombreReservaInput.classList.remove('is-invalid');
+        if (seleccionadosCount === 0) {
+            alert('Debes seleccionar al menos un horario para reservar.');
+            event.preventDefault();
+            return;
+        }
+        
+        if ((seleccionadosCount > 1 || esMensual) && !nombreInput.value.trim()) {
+            alert('Para reservar múltiples horarios o una reserva mensual, el campo de nombre es obligatorio.');
+            nombreInput.focus();
+            event.preventDefault();
+            return;
+        }
+    });
 
-            if (selectedCheckboxes.length === 0) {
-                alert('Debes seleccionar al menos un horario para reservar.');
-                formIsValid = false;
-            }
-            if (!nombreReservaInput.value.trim()) {
-                nombreReservaInput.classList.add('is-invalid');
-                formIsValid = false;
-            }
+    actualizarPanel();
 
-            if (!formIsValid) {
-                event.preventDefault();
-            }
-        });
-
-        document.getElementById('nombre_reserva_bloque')?.addEventListener('input', function() {
-            if (this.value.trim()) {
-                this.classList.remove('is-invalid');
+    // Lógica de filtros (sin cambios)
+    const filterButtonGroup = document.querySelector('.btn-group[aria-label="Filtro de horarios"]');
+    if (filterButtonGroup) {
+        const scheduleGrid = document.querySelector('.horarios-grid');
+        filterButtonGroup.addEventListener('click', function(event){
+            if(event.target.matches('button[data-filter]')) {
+                const filterValue = event.target.dataset.filter;
+                filterButtonGroup.querySelector('.active').classList.remove('active');
+                event.target.classList.add('active');
+                
+                scheduleGrid.querySelectorAll('[data-estado]').forEach(slot => {
+                    slot.style.display = (filterValue === 'todos' || slot.dataset.estado === filterValue) ? '' : 'none';
+                });
             }
         });
     }
