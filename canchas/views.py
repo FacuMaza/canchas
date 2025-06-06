@@ -318,7 +318,7 @@ class ReservaExitosaView(TemplateView):
                 wa_params['text'] = mensaje_texto
                 context['reserva_confirmada'] = True
 
-        context['whatsapp_url'] = f"https://wa.me/5493875908958?{urlencode(wa_params)}"
+        context['whatsapp_url'] = f"https://wa.me/5493873546645?{urlencode(wa_params)}"
         return context
 
 
