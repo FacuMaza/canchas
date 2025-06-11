@@ -61,6 +61,15 @@ urlpatterns += [
 ]
 
 
+##CIERRE DE CAJA
+urlpatterns += [
+    path('cierre-caja/', views.CierreCajaView.as_view(), name='cierre-caja'),
+    path('cierre-caja/realizar/', views.RealizarCierreCajaView.as_view(), name='realizar-cierre-caja'),
+    path('cierre-caja/historial/', views.HistorialCierreCajaView.as_view(), name='historial-cierre-caja'),
+    path('cierre-caja/detalle/<int:pk>/', views.CierreCajaDetalleView.as_view(), name='cierre-caja-detalle'),
+]
+
+
 ##EXTRAS
 urlpatterns += [
     path('movimientos/', views.MovimientosRecientesListView.as_view(), name='movimientos-list'),
@@ -68,11 +77,14 @@ urlpatterns += [
     path('extras/<int:pk>/editar/', views.ExtraUpdateView.as_view(), name='extra-update'),
     path('extras/<int:pk>/eliminar/', views.ExtraDeleteView.as_view(), name='extra-delete'),
 ]
+
+
 ##INGRESOS
 urlpatterns += [
     path('ingresos/', views.IngresoListView.as_view(), name='ingreso-list'),
     path('ingresos/nuevo/', views.IngresoCreateView.as_view(), name='ingreso-create'),
 ]
+
 ##HISTORIAL
 urlpatterns += [
     path('historial/', views.HistorialView.as_view(), name='historial-view'),
@@ -82,9 +94,12 @@ urlpatterns += [
     path('historial/mensual/<int:year>/<int:month>/', views.HistorialMensualDetalleView.as_view(), name='historial-mensual-detalle'),
     path('historial/anual/<int:year>/', views.HistorialAnualDetalleView.as_view(), name='historial-anual-detalle'),
     path('historial/diario/<str:fecha_str>/descargar/pdf/', views.DescargarHistorialDiarioPDFView.as_view(), name='descargar-historial-diario-pdf'),
-path('historial/mensual/<int:year>/<int:month>/descargar/pdf/', views.DescargarHistorialMensualPDFView.as_view(), name='descargar-historial-mensual-pdf'),
-path('historial/anual/<int:year>/descargar/pdf/', views.DescargarHistorialAnualPDFView.as_view(), name='descargar-historial-anual-pdf'),
+    path('historial/mensual/<int:year>/<int:month>/descargar/pdf/', views.DescargarHistorialMensualPDFView.as_view(), name='descargar-historial-mensual-pdf'),
+    path('historial/anual/<int:year>/descargar/pdf/', views.DescargarHistorialAnualPDFView.as_view(), name='descargar-historial-anual-pdf'),
 ]
+
+
+
 
 ##egreso
 urlpatterns += [

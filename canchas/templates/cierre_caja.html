@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ titulo_pagina }} para: {{ user.username }}</h1>
+    <a href="{% url 'historial-cierre-caja' %}" class="btn btn-sm btn-outline-secondary">Ver Mi Historial de Cierres</a>
+</div>
+
+<div class="card">
+    <div class="card-header">Movimientos Pendientes de Cierre</div>
+    <div class="card-body">
+        {% if movimientos_pendientes %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th class="text-end">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos_pendientes %}
+                        <tr>
+                            <td>{{ mov.fecha_movimiento|date:"d/m/Y " }}</td>
+                            <td>
+                                {% if mov.tipo_movimiento == 'ingreso' %}
+                                    <span class="badge bg-success">Ingreso</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Egreso</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ mov.descripcion }}</td>
+                            <td class="text-end">
+                                {% if mov.tipo_movimiento == 'ingreso' %}
+                                    <strong class="text-success">+${{ mov.monto|floatformat:2 }}</strong>
+                                {% else %}
+                                    <strong class="text-danger">-${{ mov.monto|floatformat:2 }}</strong>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end"><strong>Total Ingresos:</strong></td>
+                            <td class="text-end text-success"><strong>+${{ total_ingresos|floatformat:2 }}</strong></td>
+                        </tr>
+                        <tr class="table-light">
+                            <td colspan="3" class="text-end"><strong>Total Egresos:</strong></td>
+                            <td class="text-end text-danger"><strong>-${{ total_egresos|floatformat:2 }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="text-end"><h4>Balance a Cerrar:</h4></td>
+                            <td class="text-end"><h4>${{ balance_a_cerrar|floatformat:2 }}</h4></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">No tienes movimientos pendientes para cerrar. ¡Buen trabajo!</div>
+        {% endif %}
+    </div>
+    <div class="card-footer text-end">
+        {% if movimientos_pendientes %}
+            <form action="{% url 'realizar-cierre-caja' %}" method="post" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-lg">Realizar Cierre de Caja (${{ balance_a_cerrar|floatformat:2 }})</button>
+            </form>
+        {% endif %}
+        <a href="{% url 'cancha-list' %}" class="btn btn-secondary">Volver</a>
+    </div>
+</div>
+{% endblock %}

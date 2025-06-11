@@ -227,6 +227,27 @@ class Ingreso(models.Model):
         ('otro', 'Otro'),
     ]
 
+    # --- CAMPO NUEVO Y CRUCIAL ---
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ingresos_registrados',
+        verbose_name=_("Registrado por")
+    )
+    # --- CAMPO NUEVO PARA VINCULAR AL CIERRE ---
+    cierre_caja = models.ForeignKey(
+        'CierreDeCaja',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ingresos_incluidos', # Nuevo related_name
+        verbose_name=_("Cierre de Caja Asociado")
+    )
+
+
+
+
+
     reserva = models.ForeignKey(
         Reserva,
         on_delete=models.SET_NULL,  # Mantener registro de ingreso si se borra reserva
@@ -326,6 +347,23 @@ class Egreso(models.Model):
     ]
     # --- Fin Choices ---
 
+
+    # --- CAMPO NUEVO Y CRUCIAL ---
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='egresos_registrados',
+        verbose_name=_("Registrado por")
+    )
+    # --- CAMPO NUEVO PARA VINCULAR AL CIERRE ---
+    cierre_caja = models.ForeignKey(
+        'CierreDeCaja',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='egresos_incluidos', # Nuevo related_name
+        verbose_name=_("Cierre de Caja Asociado")
+    )
     # --- Tus Campos originales ---
     cancha = models.ForeignKey(
         Cancha,
@@ -538,7 +576,6 @@ class Venta(models.Model):
         related_name='ventas',
         verbose_name=_("Producto Extra")
     )
-    # Hacemos reserva opcional explícitamente (aunque ya lo era con SET_NULL, null=True, blank=True)
     reserva = models.ForeignKey(
         Reserva,
         on_delete=models.SET_NULL,
@@ -567,16 +604,32 @@ class Venta(models.Model):
         related_name='ventas_asociadas',
         verbose_name=_("Ingreso Asociado")
     )
-    # --- NUEVO CAMPO ---
     metodo_pago = models.CharField(
         _("Método de Pago"),
         max_length=20,
         choices=Ingreso.METODO_PAGO_CHOICES, # Reutilizamos las choices
         blank=False, null=False, # Hacemos que sea obligatorio para la venta directa
-        default='efectivo' # Opcional: poner un default común
+        default='efectivo'
     )
-    # --- FIN NUEVO CAMPO ---
+    
+    # --- CAMPO NUEVO Y NECESARIO ---
+    vendedor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ventas_realizadas',
+        verbose_name=_("Vendedor")
+    )
+    # --- FIN DEL CAMPO NUEVO ---
 
+    cierre_caja = models.ForeignKey(
+        'CierreDeCaja', # Usamos string para evitar importación circular
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ventas_incluidas',
+        verbose_name=_("Cierre de Caja Asociado")
+    )
     class Meta:
         verbose_name = _("Venta")
         verbose_name_plural = _("Ventas")
@@ -584,84 +637,129 @@ class Venta(models.Model):
 
     def __str__(self):
         reserva_info = f" (Reserva #{self.reserva.pk})" if self.reserva else ""
-        # Añadimos el método de pago al string
         metodo_pago_str = f" ({self.get_metodo_pago_display()})" if self.metodo_pago else ""
         return f"Venta: {self.cantidad} x {self.extra.nombre} a ${self.precio_unitario} - {self.fecha_venta.strftime('%Y-%m-%d %H:%M')}{metodo_pago_str}{reserva_info}"
 
+    @property
+    def total_venta(self):
+        """Calcula el total de la línea de venta."""
+        if self.cantidad is not None and self.precio_unitario is not None:
+            return self.cantidad * self.precio_unitario
+        return Decimal('0.00')
+
     def clean(self):
         """Validar que la cantidad y el precio sean positivos."""
-        if self.cantidad <= 0:
+        if self.cantidad is not None and self.cantidad <= 0:
             raise ValidationError(_('La cantidad vendida debe ser mayor a cero.'))
-        # Ojo: precio_unitario se asigna en save, así que esta validación puede no ser útil aquí
-        # if self.precio_unitario is not None and self.precio_unitario <= 0:
-        #     raise ValidationError(_('El precio unitario debe ser mayor a cero.'))
-        # No necesitamos validar metodo_pago aquí si es requerido y tiene choices
 
     def save(self, *args, **kwargs):
-        """Sobreescribir save para generar ingreso, guardar venta, LUEGO reducir stock."""
-        is_new = self.pk is None # Verificar si es una venta nueva
+        is_new = self.pk is None 
 
-        # 1. Asignar precio unitario (si no se ha hecho ya)
         if self.precio_unitario is None and self.extra:
             self.precio_unitario = self.extra.precio_actual
 
-        # --- PASO CLAVE 1: Guardar la Venta PRIMERO ---
-        # Esto asegura que la venta tenga un PK si es nueva y guarda el metodo_pago en la Venta
-        super().save(*args, **kwargs)
-        # ---------------------------------------------------------------------
-
-        ingreso_creado = None # Variable para rastrear si se creó el ingreso
-
-        # 2. Crear ingreso asociado (solo para nuevas ventas y si no existe ya)
-        #    Este bloque ahora se ejecuta DESPUÉS de guardar la venta.
+        # Primero guarda la venta para tener un PK
+        super().save(*args, **kwargs) 
+        
+        # Lógica de creación de ingreso y reducción de stock
         if is_new and not self.ingreso:
-            if self.precio_unitario is not None: # Asegurarse que hay precio para calcular total
-                total = Decimal(self.cantidad) * self.precio_unitario
+            if self.precio_unitario is not None:
+                total = self.total_venta
                 try:
-                    # Crear el Ingreso usando el metodo_pago de ESTA venta (self.metodo_pago)
                     ingreso_creado = Ingreso.objects.create(
-                        reserva=self.reserva, # Será None si no se asoció una reserva
+                        reserva=self.reserva,
                         fecha=self.fecha_venta.date(),
                         monto=total,
                         descripcion=f"Venta: {self.cantidad} x {self.extra.nombre}",
-                        metodo_pago=self.metodo_pago, # <--- Pasa el método de pago
-                        venta=self # Asocia esta Venta con el Ingreso
+                        metodo_pago=self.metodo_pago,
+                        venta=self,
+                        responsable=self.vendedor # <-- LÍNEA CLAVE: Asigna el responsable
                     )
-                    # Actualizar la venta (que ya existe) para vincularla al ingreso recién creado
-                    # Usamos update() para evitar llamar a save() de nuevo y saltar señales/recursión
+                    # Actualiza la venta con el ingreso creado
                     Venta.objects.filter(pk=self.pk).update(ingreso=ingreso_creado)
-                    self.ingreso = ingreso_creado # Actualizar también la instancia en memoria
+                    self.ingreso = ingreso_creado
+
+                    # Mover la lógica de stock aquí para que solo se ejecute si el ingreso se creó bien
+                    if self.extra and self.cantidad > 0:
+                        try:
+                            stock = Stock.objects.select_for_update().get(extra=self.extra)
+                            stock.reducir_stock(self.cantidad)
+                        except Stock.DoesNotExist:
+                            print(f"Error CRÍTICO post-venta: No se encontró stock para {self.extra.nombre} (Venta ID: {self.pk}) para reducir.")
+                        except ValidationError as e:
+                            print(f"Error CRÍTICO post-venta: No se pudo reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e}")
 
                 except Exception as e:
-                    # Es importante registrar si la creación del Ingreso falla
-                    print(f"Error CRÍTICO al crear Ingreso para Venta {self.pk}: {e}")
-                    # Dependiendo de tu lógica, podrías querer borrar la Venta aquí o marcarla como incompleta
-                    # Por ahora, solo lo registramos en la consola.
+                    print(f"Error CRÍTICO al procesar Venta {self.pk}: {e}")
             else:
-                 # Este caso es menos probable si 'extra' es obligatorio
                  print(f"Advertencia: No se pudo crear ingreso para Venta {self.pk} porque falta precio_unitario.")
 
-        # --- PASO CLAVE 2: Reducir stock DESPUÉS de guardar Venta y crear Ingreso ---
-        # Solo intentamos reducir si la venta es nueva, se creó un ingreso,
-        # hay un producto asociado y la cantidad es mayor a cero.
         if is_new and ingreso_creado and self.extra and self.cantidad > 0:
             try:
-                # Usar select_for_update es bueno si hay posibilidad de ventas concurrentes
                 stock = Stock.objects.select_for_update().get(extra=self.extra)
-                # Llamar al método que reduce y guarda el stock.
-                # Asegúrate que este método maneje la validación de cantidad.
                 stock.reducir_stock(self.cantidad)
             except Stock.DoesNotExist:
-                # La venta y el ingreso existen, pero el stock no. ¡Error grave!
                 print(f"Error CRÍTICO post-venta: No se encontró stock para {self.extra.nombre} (Venta ID: {self.pk}) para reducir.")
-                # Considera añadir un sistema de notificación/log más robusto aquí.
             except ValidationError as e:
-                # La venta y el ingreso existen, pero no se pudo reducir stock (ej: insuficiente). ¡Error grave!
                 print(f"Error CRÍTICO post-venta: No se pudo reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e}")
-                # Considera añadir un sistema de notificación/log más robusto aquí.
             except Exception as e_stock:
-                 # Otros errores inesperados al interactuar con el stock
                  print(f"Error INESPERADO post-venta al reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e_stock}")
+
+
+
+##cierre de caja 
+
+class CierreDeCaja(models.Model):
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='cierres_de_caja',
+        verbose_name=_("Usuario")
+    )
+    fecha_cierre = models.DateTimeField(
+        _("Fecha y Hora del Cierre"),
+        default=timezone.now
+    )
+    # --- CAMPOS MODIFICADOS/NUEVOS ---
+    total_ingresos = models.DecimalField(
+        _("Total de Ingresos"), max_digits=12, decimal_places=2, default=0
+    )
+    total_egresos = models.DecimalField(
+        _("Total de Egresos"), max_digits=12, decimal_places=2, default=0
+    )
+    cantidad_movimientos = models.PositiveIntegerField(
+        _("Cantidad de Movimientos"),null=True
+    )
+    # --- ELIMINAR CAMPOS ANTIGUOS ---
+    # monto_total = models.DecimalField(...) # Reemplazado por balance
+    # cantidad_ventas = models.PositiveIntegerField(...) # Reemplazado por cantidad_movimientos
+
+    class Meta:
+        verbose_name = _("Cierre de Caja")
+        verbose_name_plural = _("Historial de Cierres de Caja")
+        ordering = ['-fecha_cierre']
+    
+    @property
+    def balance_cierre(self):
+        """Calcula el balance final del cierre."""
+        return self.total_ingresos - self.total_egresos
+
+    def __str__(self):
+        return (f"Cierre de {self.usuario.username} - {self.fecha_cierre.strftime('%d/%m/%Y %H:%M')} "
+                f"- Balance: ${self.balance_cierre:,.2f}")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

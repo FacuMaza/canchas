@@ -891,27 +891,21 @@ class CobroReservaView(View):
 
     def get(self, request, reserva_pk):
         reserva_base = get_object_or_404(Reserva, pk=reserva_pk)
-
-        # Validar si ALGUNA reserva del bloque está en estado cobrable.
-        # Si todas ya están 'confirmada', igual se permite llegar para registrar un pago (quizás un re-pago o un pago tardío).
-        # El cambio de estado solo ocurrirá para las que no estén 'confirmada'.
         
         # Obtener el contexto del bloque
         bloque_context = self._get_bloque_context(reserva_base)
         
-        # Si no hay reservas en el bloque display (muy raro si reserva_base existe), redirigir.
         if not bloque_context['reservas_del_bloque_display'].exists():
             messages.error(request, "No se encontraron reservas asociadas para este cobro.")
-            return redirect('cancha-detail', pk=reserva_base.cancha.pk) # O a una vista más general
-
+            return redirect('cancha-detail', pk=reserva_base.cancha.pk)
 
         # El monto inicial del formulario será el sugerido para el bloque completo.
         form = self.form_class(initial={'monto': None})
 
         context = {
             'form': form,
-            'reserva_base': reserva_base, # La reserva que disparó el cobro (PK de la URL)
-            'reservas_del_bloque': bloque_context['reservas_del_bloque_display'], # Para mostrar en el template
+            'reserva_base': reserva_base,
+            'reservas_del_bloque': bloque_context['reservas_del_bloque_display'],
             'monto_total_sugerido': bloque_context['monto_total_sugerido'],
             'fechas_implicadas': bloque_context['fechas_implicadas'],
         }
@@ -927,50 +921,34 @@ class CobroReservaView(View):
             descripcion_adicional = form.cleaned_data.get('descripcion_adicional', '')
 
             try:
-                # Identificar TODAS las reservas que pertenecen al bloque de la reserva_base
-                # y que necesitan que su estado cambie a 'confirmada'.
-                # Estas son las que NO están ya 'confirmada' (ej. 'pendiente_pago', 'pendiente')
                 cancha = reserva_base.cancha
                 nombre_bloque = reserva_base.nombre_reserva
-                fecha_inicio_bloque = reserva_base.fecha # Usar la fecha de la reserva_base como inicio del bloque
+                fecha_inicio_bloque = reserva_base.fecha
                 tipo_origen = reserva_base.tipo_reserva_origen
 
-                # Reservas del bloque que necesitan actualizar su estado
-                # Si no hay nombre_bloque, significa que es una reserva única (diaria)
                 if nombre_bloque:
                     reservas_a_actualizar_estado = Reserva.objects.filter(
                         cancha=cancha,
                         nombre_reserva=nombre_bloque,
-                        fecha__gte=fecha_inicio_bloque, # Considerar todas las futuras del bloque
+                        fecha__gte=fecha_inicio_bloque,
                         tipo_reserva_origen=tipo_origen,
-                        estado__in=['pendiente_pago', 'pendiente'] # Solo las que no están confirmadas
+                        estado__in=['pendiente_pago', 'pendiente']
                     )
-                else: # Reserva única, solo actualizar la reserva_base si está pendiente de pago
+                else:
                     if reserva_base.estado in ['pendiente_pago', 'pendiente']:
                         reservas_a_actualizar_estado = Reserva.objects.filter(pk=reserva_base.pk)
                     else:
                         reservas_a_actualizar_estado = Reserva.objects.none()
 
-
                 reservas_actualizadas_count = 0
                 for reserva_obj in reservas_a_actualizar_estado:
                     reserva_obj.estado = 'confirmada'
-                    # Opcional: Asignar el precio_reserva del bloque al turno individual si no lo tiene,
-                    # o si el monto cobrado es por el total y se quiere prorratear.
-                    # Por simplicidad, aquí solo cambiamos el estado.
-                    # Si quieres actualizar el precio_reserva individual:
-                    # if reserva_obj.precio_reserva is None and reserva_base.precio_reserva is not None:
-                    #     reserva_obj.precio_reserva = reserva_base.precio_reserva # O alguna lógica de prorrateo
                     reserva_obj.save()
                     reservas_actualizadas_count += 1
                 
-                # Descripción para el Ingreso
                 desc_nombre_reserva_ing = reserva_base.nombre_reserva or 'Turno Único'
                 desc_cancha_ing = reserva_base.cancha.nombre
                 
-                # Determinar si se cobró un bloque o una reserva individual para la descripción del ingreso
-                # Usamos la cuenta de las reservas que se actualizaron, o si es tipo mensual
-                # Tu lógica original para num_reservas_bloque ya hacía esto, la podemos reusar:
                 num_total_reservas_en_bloque_original = Reserva.objects.filter(
                     cancha=cancha,
                     nombre_reserva=nombre_bloque,
@@ -980,7 +958,7 @@ class CobroReservaView(View):
 
                 if num_total_reservas_en_bloque_original > 1 and nombre_bloque:
                      descripcion_ingreso = f"Cobro bloque '{desc_nombre_reserva_ing}' - Cancha {desc_cancha_ing} (desde {reserva_base.fecha.strftime('%d/%m')})"
-                else: # Incluye el caso de reserva única (sin nombre_bloque) o un "bloque" de 1
+                else:
                      descripcion_ingreso = f"Cobro reserva '{desc_nombre_reserva_ing}' - Cancha {desc_cancha_ing} ({reserva_base.fecha.strftime('%d/%m')} {reserva_base.hora_inicio.strftime('%H:%M')})"
 
                 if descripcion_adicional:
@@ -988,39 +966,34 @@ class CobroReservaView(View):
 
                 # Crear UN Ingreso asociado a la reserva_base, con el monto total cobrado.
                 ingreso = Ingreso.objects.create(
-                    reserva=reserva_base, # Asociar a la reserva que inició el cobro
-                    fecha=timezone.now().date(), # O la fecha que el usuario indique para el pago
+                    reserva=reserva_base,
+                    fecha=timezone.now().date(),
                     monto=monto_cobrado,
                     descripcion=descripcion_ingreso,
-                    metodo_pago=metodo_pago
+                    metodo_pago=metodo_pago,
+                    responsable=request.user # <-- LA ÚNICA LÍNEA AGREGADA
                 )
 
                 if reservas_actualizadas_count > 0:
                     messages.success(request, f"{reservas_actualizadas_count} turno(s) del bloque '{desc_nombre_reserva_ing}' confirmados. Cobro de ${monto_cobrado:.2f} registrado.")
                 else:
-                    # Esto pasaría si todas las reservas del bloque ya estaban confirmadas, pero se registra un pago.
                     messages.success(request, f"Cobro de ${monto_cobrado:.2f} registrado para '{desc_nombre_reserva_ing}'. (Los turnos ya estaban confirmados).")
                 
-                # Redirigir a la vista de reserva de fecha para la reserva_base.
-                # Esto es crucial para que el usuario vea los estados actualizados.
                 return redirect('reservar-fecha', cancha_pk=reserva_base.cancha.pk, fecha=reserva_base.fecha.strftime('%Y-%m-%d'))
 
             except Exception as e:
                  print(f"Error crítico al procesar cobro para reserva {reserva_pk} (Bloque: {reserva_base.nombre_reserva}): {e}")
                  messages.error(request, f"Ocurrió un error grave al registrar el cobro. Por favor, contacte a soporte. Detalle: {e}")
 
-        # Si el formulario no es válido, volver a mostrarlo con errores
-        # Reconstruir el contexto necesario para el template
         bloque_context_error = self._get_bloque_context(reserva_base)
         context = {
-            'form': form, # El formulario con errores y datos ingresados
+            'form': form,
             'reserva_base': reserva_base,
             'reservas_del_bloque': bloque_context_error['reservas_del_bloque_display'],
             'monto_total_sugerido': bloque_context_error['monto_total_sugerido'],
             'fechas_implicadas': bloque_context_error['fechas_implicadas'],
         }
         return render(request, self.template_name, context)
-
 ##EXTRAS
 
 
@@ -1196,12 +1169,17 @@ class IngresoListView(ListView):
         # Permitir filtrar por fecha si se implementa
         return Ingreso.objects.all().order_by('-fecha', '-pk')
 
-class IngresoCreateView(SuccessMessageMixin, CreateView):
+class IngresoCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Ingreso
-    form_class = IngresoForm
-    template_name = 'ingreso_form.html'
+    form_class = IngresoForm # Asegúrate de tener este form
+    template_name = 'ingreso_form.html' # O el nombre que uses
     success_url = reverse_lazy('ingreso-list')
-    success_message = "Ingreso de $%(monto).2f registrado exitosamente."
+    success_message = "Ingreso registrado correctamente."
+
+    def form_valid(self, form):
+        """Asigna el usuario logueado como responsable."""
+        form.instance.responsable = self.request.user
+        return super().form_valid(form)
 
 
 # --- Vistas para Egresos ---
@@ -1214,12 +1192,17 @@ class EgresoListView(ListView):
     def get_queryset(self):
         return Egreso.objects.all().order_by('-fecha', '-pk')
 
-class EgresoCreateView(SuccessMessageMixin, CreateView):
+class EgresoCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Egreso
-    form_class = EgresoForm
-    template_name = 'egreso_form.html'
+    form_class = EgresoForm # Asegúrate de tener este form
+    template_name = 'egreso_form.html' # O el nombre que uses
     success_url = reverse_lazy('egreso-list')
-    success_message = "Egreso de $%(monto).2f registrado exitosamente."
+    success_message = "Egreso registrado correctamente."
+
+    def form_valid(self, form):
+        """Asigna el usuario logueado como responsable."""
+        form.instance.responsable = self.request.user
+        return super().form_valid(form)
 
 
 # --- Vista para Historial/Reporte (Ejemplo Básico) ---
@@ -1867,39 +1850,180 @@ def stock_listar(request):
 
 
 
-class VentaCreateView( SuccessMessageMixin, CreateView): # Asegúrate que LoginRequiredMixin esté si es necesario
+# --- AÑADIR ESTA FUNCIÓN DE AYUDA ---
+def is_employee(user):
+    """Verifica si el usuario es superusuario, Admin o Empleado."""
+    if not user.is_authenticated:
+        return False
+    # Asumimos que los Admins y Superusers también pueden ver su propio cierre de caja
+    return user.is_superuser or user.groups.filter(name__in=['Admins', 'Empleados']).exists()
+
+
+# --- REEMPLAZAR VentaCreateView ---
+# (La clase completa, que ahora incluye el método form_valid)
+class VentaCreateView( SuccessMessageMixin, CreateView):
     model = Venta
     form_class = VentaForm
     template_name = 'venta_registrar.html'
-    success_url = reverse_lazy('venta_listar') # O a donde quieras redirigir
+    success_url = reverse_lazy('venta_listar')
     success_message = _("Venta registrada exitosamente.")
+
+    def form_valid(self, form):
+        """Asigna el usuario logueado como vendedor antes de guardar."""
+        form.instance.vendedor = self.request.user
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # ---- LÍNEA CLAVE ACTUALIZADA -----
-        # Añadir precios de los extras que tienen stock para usar en JavaScript
-        # Asegúrate de que este queryset coincida con el del VentaForm.__init__
         extras_con_stock_y_precio = Extra.objects.filter(
             activo=True,
-            stocks__isnull=False # Clave: solo extras con stock
+            stocks__isnull=False
         ).distinct()
 
         context['extras_precios'] = {
             str(extra.pk): str(extra.precio_actual)
             for extra in extras_con_stock_y_precio
         }
-        # ---------------------------------
-        context['titulo_pagina'] = _("Registrar Venta") # Opcional: añadir título
+        context['titulo_pagina'] = _("Registrar Venta")
         return context
 
-    # Puedes añadir form_valid si necesitas lógica extra al guardar,
-    # pero el modelo Venta.save() ya maneja la creación de Ingreso y reducción de stock.
-    # def form_valid(self, form):
-    #     # Lógica adicional si es necesaria antes o después de guardar
-    #     # response = super().form_valid(form)
-    #     # Lógica adicional
-    #     # return response
-    #     return super().form_valid(form)
+
+class CierreCajaView(LoginRequiredMixin, ListView):
+    template_name = 'cierre_caja.html'
+    context_object_name = 'movimientos_pendientes' # Nuevo nombre de contexto
+
+    def get_queryset(self):
+        # Esta vista ya no usará un queryset directo, lo construiremos en get_context_data
+        return None
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+
+        # 1. Obtener ingresos y egresos pendientes del usuario
+        ingresos_pendientes = Ingreso.objects.filter(
+            responsable=user, cierre_caja__isnull=True
+        )
+        egresos_pendientes = Egreso.objects.filter(
+            responsable=user, cierre_caja__isnull=True
+        )
+
+        # 2. Combinar y ordenar los movimientos
+        # Añadimos atributos para poder identificarlos y ordenarlos en la plantilla
+        for i in ingresos_pendientes:
+            i.tipo_movimiento = 'ingreso'
+            i.fecha_movimiento = i.fecha # o i.venta.fecha_venta si es más preciso
+        for e in egresos_pendientes:
+            e.tipo_movimiento = 'egreso'
+            e.fecha_movimiento = e.fecha
+
+        movimientos_combinados = sorted(
+            chain(ingresos_pendientes, egresos_pendientes),
+            key=attrgetter('fecha_movimiento'),
+            reverse=True
+        )
+
+        # 3. Calcular totales
+        total_ingresos = ingresos_pendientes.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
+        total_egresos = egresos_pendientes.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
+        balance = total_ingresos - total_egresos
+
+        context['titulo_pagina'] = "Cierre de Caja"
+        context['movimientos_pendientes'] = movimientos_combinados
+        context['total_ingresos'] = total_ingresos
+        context['total_egresos'] = total_egresos
+        context['balance_a_cerrar'] = balance
+        
+        return context
+
+class RealizarCierreCajaView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        
+        ingresos_a_cerrar = Ingreso.objects.filter(responsable=user, cierre_caja__isnull=True)
+        egresos_a_cerrar = Egreso.objects.filter(responsable=user, cierre_caja__isnull=True)
+
+        if not ingresos_a_cerrar.exists() and not egresos_a_cerrar.exists():
+            messages.warning(request, "No hay movimientos pendientes para cerrar.")
+            return redirect('cierre-caja')
+
+        # Calcular totales
+        total_ingresos = ingresos_a_cerrar.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
+        total_egresos = egresos_a_cerrar.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
+        cantidad_movimientos = ingresos_a_cerrar.count() + egresos_a_cerrar.count()
+        
+        # Crear el registro de CierreDeCaja con los nuevos campos
+        cierre = CierreDeCaja.objects.create(
+            usuario=user,
+            total_ingresos=total_ingresos,
+            total_egresos=total_egresos,
+            cantidad_movimientos=cantidad_movimientos
+        )
+
+        # Vincular todos los movimientos al nuevo cierre
+        ingresos_a_cerrar.update(cierre_caja=cierre)
+        egresos_a_cerrar.update(cierre_caja=cierre)
+
+        messages.success(request, f"Cierre de caja realizado exitosamente con un balance de ${cierre.balance_cierre:,.2f}.")
+        return redirect('cierre-caja-detalle', pk=cierre.pk)
+
+
+class HistorialCierreCajaView(LoginRequiredMixin, ListView):
+    """
+    Muestra el historial de todos los Cierres de Caja realizados por el usuario.
+    """
+    model = CierreDeCaja
+    template_name = 'cierre_caja_historial.html' # Crearemos esta plantilla
+    context_object_name = 'historial_cierres'
+    paginate_by = 15
+
+    def get_queryset(self):
+        """Muestra solo los cierres del usuario logueado."""
+        return CierreDeCaja.objects.filter(usuario=self.request.user).order_by('-fecha_cierre')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['titulo_pagina'] = "Historial de Cierres de Caja"
+        return context
+
+from itertools import chain
+from operator import attrgetter
+
+
+class CierreCajaDetalleView(LoginRequiredMixin, DetailView):
+    model = CierreDeCaja
+    template_name = 'cierre_caja_detalle.html'
+    context_object_name = 'cierre'
+
+    def get_queryset(self):
+        return super().get_queryset().filter(usuario=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cierre = self.object
+
+        # Obtenemos los movimientos ya vinculados a través del related_name
+        ingresos = cierre.ingresos_incluidos.all()
+        egresos = cierre.egresos_incluidos.all()
+        
+        for i in ingresos:
+            i.tipo_movimiento = 'ingreso'
+            i.fecha_movimiento = i.fecha
+        for e in egresos:
+            e.tipo_movimiento = 'egreso'
+            e.fecha_movimiento = e.fecha
+
+        # Combinar y ordenar para la tabla de detalle
+        movimientos_combinados = sorted(
+            chain(ingresos, egresos),
+            key=attrgetter('fecha_movimiento'),
+            reverse=True
+        )
+
+        fecha_formateada = cierre.fecha_cierre.strftime('%d/%m/%Y a las %H:%M')
+        context['titulo_pagina'] = f"Detalle del Cierre del {fecha_formateada}"
+        context['movimientos_del_cierre'] = movimientos_combinados
+        return context
 
 # --- VISTA DE LISTADO DE VENTAS (Sin cambios necesarios para esta funcionalidad) ---
 class VentaListView( ListView): # Asegúrate que LoginRequiredMixin esté si es necesario
