@@ -12,13 +12,17 @@
 <div class="card mb-4">
     <div class="card-header">Resumen del Cierre</div>
     <div class="card-body">
-        <div class="row gy-2">
-            <div class="col-md-4"><strong>Fecha y Hora:</strong> {{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</div>
-            <div class="col-md-4"><strong>Total Movimientos:</strong> {{ cierre.cantidad_movimientos }}</div>
-            <div class="col-md-4 text-md-end"><strong>Balance Final:</strong> <span class="h5">${{ cierre.balance_cierre|floatformat:2 }}</span></div>
-            <div class="col-md-6"><strong>Total Ingresos:</strong> <span class="text-success fw-bold">+${{ cierre.total_ingresos|floatformat:2 }}</span></div>
-            <div class="col-md-6 text-md-end"><strong>Total Egresos:</strong> <span class="text-danger fw-bold">-${{ cierre.total_egresos|floatformat:2 }}</span></div>
+        {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+        {# Se usan columnas de 12 en móvil y se apilan. En pantallas medianas (md) se ponen en línea. #}
+        <div class="row gy-3">
+            <div class="col-12 col-md-4"><strong>Fecha y Hora:</strong><br class="d-md-none"> {{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</div>
+            <div class="col-12 col-md-4 text-center text-md-start"><strong>Total Movimientos:</strong><br class="d-md-none"> {{ cierre.cantidad_movimientos }}</div>
+            <div class="col-12 col-md-4 text-center text-md-end"><strong>Balance Final:</strong><br class="d-md-none"> <span class="h5">${{ cierre.balance_cierre|floatformat:2 }}</span></div>
+            <hr class="d-md-none">
+            <div class="col-12 col-md-6"><strong>Total Ingresos:</strong><br class="d-md-none"> <span class="text-success fw-bold">+${{ cierre.total_ingresos|floatformat:2 }}</span></div>
+            <div class="col-12 col-md-6 text-center text-md-end"><strong>Total Egresos:</strong><br class="d-md-none"> <span class="text-danger fw-bold">-${{ cierre.total_egresos|floatformat:2 }}</span></div>
         </div>
+        {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
     </div>
 </div>
 
@@ -39,7 +43,12 @@
                 <tbody>
                     {% for mov in movimientos_del_cierre %}
                     <tr>
-                        <td>{{ mov.fecha_movimiento|date:"d/m/Y " }}</td>
+                        {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+                        {# Misma técnica de apilar fecha y hora #}
+                        <td style="min-width: 90px;">
+                            {{ mov.fecha_movimiento|date:"d/m/y" }}
+                            <small class="d-block text-muted">{{ mov.fecha_movimiento|time:"H:i" }}</small>
+                        </td>
                         <td>
                             {% if mov.tipo_movimiento == 'ingreso' %}
                                 <span class="badge bg-success">Ingreso</span>
@@ -47,14 +56,16 @@
                                 <span class="badge bg-danger">Egreso</span>
                             {% endif %}
                         </td>
-                        <td>{{ mov.descripcion }}</td>
-                        <td class="text-end">
+                        {# Se permite el corte de palabras en descripciones largas #}
+                        <td style="word-break: break-word;">{{ mov.descripcion }}</td>
+                        <td class="text-end" style="min-width: 95px;">
                             {% if mov.tipo_movimiento == 'ingreso' %}
                                 <strong class="text-success">+${{ mov.monto|floatformat:2 }}</strong>
                             {% else %}
                                 <strong class="text-danger">-${{ mov.monto|floatformat:2 }}</strong>
                             {% endif %}
                         </td>
+                        {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                     </tr>
                     {% empty %}
                     <tr>

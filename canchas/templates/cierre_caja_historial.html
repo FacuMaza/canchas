@@ -16,25 +16,36 @@
                 <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Fecha del Cierre</th>
-                            <th class="text-center">Movimientos</th>
-                            <th class="text-end">Total Ingresos</th>
-                            <th class="text-end">Total Egresos</th>
+                            {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+                            <th>Fecha</th>
+                            <th class="text-center d-none d-md-table-cell">Mov.</th>
+                            <th class="text-end d-none d-md-table-cell">Ingresos</th>
+                            <th class="text-end d-none d-md-table-cell">Egresos</th>
                             <th class="text-end">Balance</th>
                             <th class="text-center">Acciones</th>
+                            {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                         </tr>
                     </thead>
                     <tbody>
                         {% for cierre in historial_cierres %}
                         <tr>
-                            <td>{{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</td>
-                            <td class="text-center">{{ cierre.cantidad_movimientos }}</td>
-                            <td class="text-end text-success">+${{ cierre.total_ingresos|floatformat:2 }}</td>
-                            <td class="text-end text-danger">-${{ cierre.total_egresos|floatformat:2 }}</td>
+                            {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+                            {# Se acorta la fecha en móvil, mostrando la hora solo en pantallas más grandes #}
+                            <td>
+                                {{ cierre.fecha_cierre|date:"d/m/y" }}
+                                <span class="d-none d-md-inline">{{ cierre.fecha_cierre|time:"H:i" }}</span>
+                            </td>
+                            <td class="text-center d-none d-md-table-cell">{{ cierre.cantidad_movimientos }}</td>
+                            <td class="text-end text-success d-none d-md-table-cell">+${{ cierre.total_ingresos|floatformat:2 }}</td>
+                            <td class="text-end text-danger d-none d-md-table-cell">-${{ cierre.total_egresos|floatformat:2 }}</td>
                             <td class="text-end"><b>${{ cierre.balance_cierre|floatformat:2 }}</b></td>
                             <td class="text-center">
-                                <a href="{% url 'cierre-caja-detalle' pk=cierre.pk %}" class="btn btn-info btn-sm">Ver Detalle</a>
+                                {# Se acorta el texto del botón en pantallas pequeñas #}
+                                <a href="{% url 'cierre-caja-detalle' pk=cierre.pk %}" class="btn btn-info btn-sm">
+                                    Ver<span class="d-none d-sm-inline"> Detalle</span>
+                                a>
                             </td>
+                            {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                         </tr>
                         {% endfor %}
                     </tbody>

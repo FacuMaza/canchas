@@ -6,7 +6,7 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ titulo_pagina }} para: {{ user.username }}</h1>
-    <a href="{% url 'historial-cierre-caja' %}" class="btn btn-sm btn-outline-secondary">Ver Mi Historial de Cierres</a>
+    <a href="{% url 'historial-cierre-caja' %}" class="btn btn-sm btn-outline-secondary">Ver Historial</a>
 </div>
 
 <div class="card">
@@ -26,7 +26,12 @@
                     <tbody>
                         {% for mov in movimientos_pendientes %}
                         <tr>
-                            <td>{{ mov.fecha_movimiento|date:"d/m/Y " }}</td>
+                            {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+                            {# Apilamos la hora debajo de la fecha en pantallas pequeñas para ahorrar espacio #}
+                            <td style="min-width: 90px;">
+                                {{ mov.fecha_movimiento|date:"d/m/y" }}
+                                <small class="d-block text-muted">{{ mov.fecha_movimiento|time:"H:i" }}</small>
+                            </td>
                             <td>
                                 {% if mov.tipo_movimiento == 'ingreso' %}
                                     <span class="badge bg-success">Ingreso</span>
@@ -34,30 +39,35 @@
                                     <span class="badge bg-danger">Egreso</span>
                                 {% endif %}
                             </td>
-                            <td>{{ mov.descripcion }}</td>
-                            <td class="text-end">
+                            {# Acortamos la descripción para que no ocupe tanto espacio #}
+                            <td style="word-break: break-word;">{{ mov.descripcion|truncatechars:40 }}</td>
+                            <td class="text-end" style="min-width: 95px;">
                                 {% if mov.tipo_movimiento == 'ingreso' %}
                                     <strong class="text-success">+${{ mov.monto|floatformat:2 }}</strong>
                                 {% else %}
                                     <strong class="text-danger">-${{ mov.monto|floatformat:2 }}</strong>
                                 {% endif %}
                             </td>
+                            {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
+                        {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
+                        {# Acortamos el texto en pantallas pequeñas #}
                         <tr class="table-light">
-                            <td colspan="3" class="text-end"><strong>Total Ingresos:</strong></td>
+                            <td colspan="3" class="text-end"><strong>Total<span class="d-none d-sm-inline"> Ingresos</span>:</strong></td>
                             <td class="text-end text-success"><strong>+${{ total_ingresos|floatformat:2 }}</strong></td>
                         </tr>
                         <tr class="table-light">
-                            <td colspan="3" class="text-end"><strong>Total Egresos:</strong></td>
+                            <td colspan="3" class="text-end"><strong>Total<span class="d-none d-sm-inline"> Egresos</span>:</strong></td>
                             <td class="text-end text-danger"><strong>-${{ total_egresos|floatformat:2 }}</strong></td>
                         </tr>
                         <tr>
-                            <td colspan="3" class="text-end"><h4>Balance a Cerrar:</h4></td>
+                            <td colspan="3" class="text-end"><h4>Balance<span class="d-none d-sm-inline"> a Cerrar</span>:</h4></td>
                             <td class="text-end"><h4>${{ balance_a_cerrar|floatformat:2 }}</h4></td>
                         </tr>
+                        {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                     </tfoot>
                 </table>
             </div>
@@ -69,7 +79,7 @@
         {% if movimientos_pendientes %}
             <form action="{% url 'realizar-cierre-caja' %}" method="post" class="d-inline">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-success btn-lg">Realizar Cierre de Caja (${{ balance_a_cerrar|floatformat:2 }})</button>
+                <button type="submit" class="btn btn-success btn-lg">Realizar Cierre</button>
             </form>
         {% endif %}
         <a href="{% url 'cancha-list' %}" class="btn btn-secondary">Volver</a>
