@@ -25,3 +25,4 @@ def to_decimal(value):
         return None # O devuelve 0.0 si prefieres
 
 # Puedes añadir más filtros personalizados aquí si los necesitas
+

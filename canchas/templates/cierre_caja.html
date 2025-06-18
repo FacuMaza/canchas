@@ -1,73 +1,88 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}{{ titulo_pagina }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ titulo_pagina }} para: {{ user.username }}</h1>
-    <a href="{% url 'historial-cierre-caja' %}" class="btn btn-sm btn-outline-secondary">Ver Historial</a>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'historial-cierre-caja' %}" class="btn btn-sm btn-outline-secondary me-2">Mi Historial</a>
+        {% if request.user.is_superuser or request.user.groups.all.0.name == 'Admins' %}
+            <a href="{% url 'cierre-caja-generales' %}" class="btn btn-sm btn-info">Cierres Generales</a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card">
     <div class="card-header">Movimientos Pendientes de Cierre</div>
     <div class="card-body">
-        {% if movimientos_pendientes %}
+        {% if hay_movimientos %}
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-hover">
                     <thead>
                         <tr>
                             <th>Fecha</th>
                             <th>Tipo</th>
+                            <th>Categoría</th>
+                            <th>Método de Pago</th>
                             <th>Descripción</th>
                             <th class="text-end">Monto</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for mov in movimientos_pendientes %}
+                        {% for item in movimientos_pendientes %}
+                        
+                        {# CASO 1: Es un encabezado de categoría #}
+                        {% if item.tipo_fila == 'encabezado_categoria' %}
+                        <tr class="table-light">
+                            <td colspan="6" class="fw-bold ps-2">
+                                <h6 class="mb-0 mt-1">{{ item.nombre }}</h6>
+                            </td>
+                        </tr>
+                        
+                        {# CASO 2: Es una fila de movimiento normal #}
+                        {% elif item.tipo_fila == 'movimiento' %}
                         <tr>
-                            {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
-                            {# Apilamos la hora debajo de la fecha en pantallas pequeñas para ahorrar espacio #}
-                            <td style="min-width: 90px;">
-                                {{ mov.fecha_movimiento|date:"d/m/y" }}
-                                <small class="d-block text-muted">{{ mov.fecha_movimiento|time:"H:i" }}</small>
+                            <td>{{ item.fecha|date:"d/m/y " }}</td>
+                            <td>
+                                {% if item.tipo_movimiento == 'ingreso' %}<span class="badge bg-success">Ingreso</span>{% else %}<span class="badge bg-danger">Egreso</span>{% endif %}
                             </td>
                             <td>
-                                {% if mov.tipo_movimiento == 'ingreso' %}
-                                    <span class="badge bg-success">Ingreso</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Egreso</span>
-                                {% endif %}
+                                {% if item.categoria_movimiento == 'Venta' %}<span class="badge bg-primary">{{ item.categoria_movimiento }}</span>{% elif item.categoria_movimiento == 'Turno de Cancha' %}<span class="badge bg-info text-dark">{{ item.categoria_movimiento }}</span>{% else %}<span class="badge bg-secondary">{{ item.categoria_movimiento }}</span>{% endif %}
                             </td>
-                            {# Acortamos la descripción para que no ocupe tanto espacio #}
-                            <td style="word-break: break-word;">{{ mov.descripcion|truncatechars:40 }}</td>
-                            <td class="text-end" style="min-width: 95px;">
-                                {% if mov.tipo_movimiento == 'ingreso' %}
-                                    <strong class="text-success">+${{ mov.monto|floatformat:2 }}</strong>
-                                {% else %}
-                                    <strong class="text-danger">-${{ mov.monto|floatformat:2 }}</strong>
-                                {% endif %}
+                            <td>{{ item.get_metodo_pago_display|default:"-" }}</td>
+                            <td>{{ item.descripcion|truncatechars:40 }}</td>
+                            <td class="text-end">
+                                {% if item.tipo_movimiento == 'ingreso' %}<strong class="text-success">+${{ item.monto|floatformat:2 }}</strong>{% else %}<strong class="text-danger">-${{ item.monto|floatformat:2 }}</strong>{% endif %}
                             </td>
-                            {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                         </tr>
+
+                        {# CASO 3: Es una fila de subtotal #}
+                        {% elif item.tipo_fila == 'subtotal' %}
+                        <tr class="table-secondary" style="--bs-table-bg: var(--bs-gray-200);">
+                            <td colspan="5" class="text-end fw-bold">Total ({{ item.nombre }}):</td>
+                            <td class="text-end fw-bold {% if item.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ${{ item.balance|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endif %}
+
                         {% endfor %}
                     </tbody>
                     <tfoot>
-                        {# --- INICIO MODIFICACIÓN RESPONSIVE --- #}
-                        {# Acortamos el texto en pantallas pequeñas #}
-                        <tr class="table-light">
-                            <td colspan="3" class="text-end"><strong>Total<span class="d-none d-sm-inline"> Ingresos</span>:</strong></td>
+                        <tr class="table-light border-top">
+                            <td colspan="5" class="text-end"><strong>Total Ingresos:</strong></td>
                             <td class="text-end text-success"><strong>+${{ total_ingresos|floatformat:2 }}</strong></td>
                         </tr>
                         <tr class="table-light">
-                            <td colspan="3" class="text-end"><strong>Total<span class="d-none d-sm-inline"> Egresos</span>:</strong></td>
+                            <td colspan="5" class="text-end"><strong>Total Egresos:</strong></td>
                             <td class="text-end text-danger"><strong>-${{ total_egresos|floatformat:2 }}</strong></td>
                         </tr>
                         <tr>
-                            <td colspan="3" class="text-end"><h4>Balance<span class="d-none d-sm-inline"> a Cerrar</span>:</h4></td>
+                            <td colspan="5" class="text-end"><h4>Balance a Cerrar:</h4></td>
                             <td class="text-end"><h4>${{ balance_a_cerrar|floatformat:2 }}</h4></td>
                         </tr>
-                        {# --- FIN MODIFICACIÓN RESPONSIVE --- #}
                     </tfoot>
                 </table>
             </div>
@@ -76,13 +91,14 @@
         {% endif %}
     </div>
     <div class="card-footer text-end">
-        {% if movimientos_pendientes %}
+        {% if hay_movimientos %}
             <form action="{% url 'realizar-cierre-caja' %}" method="post" class="d-inline">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success btn-lg">Realizar Cierre</button>
             </form>
+        {% else %}
+             <a href="{% url 'dashboard' %}" class="btn btn-secondary">Volver</a>
         {% endif %}
-        <a href="{% url 'cancha-list' %}" class="btn btn-secondary">Volver</a>
     </div>
 </div>
 {% endblock %}

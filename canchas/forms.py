@@ -290,63 +290,53 @@ class MovimientoRapidoForm(forms.Form):
              self.fields['extra'].widget.attrs['data-precios'] = '{}'
 
     # ... (método clean sin cambios) ...
-    def clean(self):
-        cleaned_data = super().clean()
-        tipo = cleaned_data.get('tipo')
-        monto = cleaned_data.get('monto')
-        extra = cleaned_data.get('extra')
-        cantidad = cleaned_data.get('cantidad')
-        descripcion = cleaned_data.get('descripcion')
+        def clean(self):
+            cleaned_data = super().clean()
+            tipo = cleaned_data.get('tipo')
+            monto = cleaned_data.get('monto')
+            extra = cleaned_data.get('extra')
+            cantidad = cleaned_data.get('cantidad')
+            descripcion = cleaned_data.get('descripcion')
 
-        # Validación cruzada entre extra y cantidad
-        if extra and not cantidad:
-            self.add_error('cantidad', _('Ingresa la cantidad para el producto seleccionado.'))
-        elif cantidad and not extra:
-            self.add_error('extra', _('Selecciona un producto para la cantidad ingresada.'))
+            # Validación cruzada entre extra y cantidad (se mantiene)
+            if extra and not cantidad:
+                self.add_error('cantidad', _('Ingresa la cantidad para el producto seleccionado.'))
+            elif cantidad and not extra:
+                self.add_error('extra', _('Selecciona un producto para la cantidad ingresada.'))
 
-        # Validación de stock si es egreso con producto
-        if tipo == 'egreso' and extra and cantidad:
-             try:
-                stock_obj = extra.stocks.first()
-                if not stock_obj or cantidad > stock_obj.cantidad:
-                    disponible = stock_obj.cantidad if stock_obj else 0
-                    self.add_error('cantidad', _(f'Stock insuficiente para egreso. Disponible: {disponible}'))
-             except AttributeError:
-                 self.add_error('extra', _(f'Error al verificar stock para egreso de {extra.nombre}.'))
+            # --- CAMBIO CLAVE: Validación de stock ahora es general ---
+            # Ya no depende de si el tipo es 'egreso'. Si hay producto, se valida el stock.
+            if extra and cantidad:
+                try:
+                    # Usamos get() porque solo debe haber un registro de stock por producto
+                    stock_obj = Stock.objects.get(extra=extra)
+                    if cantidad > stock_obj.cantidad:
+                        disponible = stock_obj.cantidad
+                        self.add_error('cantidad', _(f'Stock insuficiente. Disponible: {disponible} unidades.'))
+                except Stock.DoesNotExist:
+                    self.add_error('extra', _('Este producto no tiene un registro de stock. Cárguelo primero.'))
+                except Exception as e:
+                    self.add_error('extra', _(f'Error al verificar stock: {e}'))
 
-        # Nueva lógica para Monto y Descripción:
-        if extra:
-            # Si se seleccionó un producto, la descripción es obligatoria, el monto no.
-            if not descripcion:
-                self.add_error('descripcion', _('Ingresa una descripción para el producto seleccionado.'))
-        else:
-            # Si NO se seleccionó producto, el monto y la descripción son obligatorios.
-            if not monto or monto <= 0:
-                self.add_error('monto', _('Ingresa un monto válido mayor a cero si no seleccionas producto.'))
-            if not descripcion:
-                self.add_error('descripcion', _('Ingresa una descripción para el movimiento.'))
+            # Lógica para Monto y Descripción (se mantiene)
+            if extra:
+                if not descripcion:
+                    # Si es una venta (ingreso con producto), la descripción por defecto puede ser el nombre del producto
+                    if tipo == 'ingreso' and extra and cantidad:
+                        cleaned_data['descripcion'] = f"Venta: {cantidad} x {extra.nombre}"
+                    else:
+                        self.add_error('descripcion', _('Ingresa una descripción para el movimiento con producto.'))
+            else:
+                if not monto or monto <= 0:
+                    self.add_error('monto', _('Ingresa un monto válido si no seleccionas un producto.'))
+                if not descripcion:
+                    self.add_error('descripcion', _('Ingresa una descripción para el movimiento.'))
 
-        # Recuperar la fecha del valor inicial puesto en el widget
-        # ya que los campos readonly sí envían su valor al POST.
-        # Si por alguna razón no viniera, usamos la fecha actual como fallback.
-        if 'fecha' not in cleaned_data:
-            # Esto es una salvaguarda, no debería ser necesario con readonly
-            cleaned_data['fecha'] = timezone.now().date()
-        elif isinstance(cleaned_data['fecha'], str):
-             # Si viene como string (puede pasar), convertirla a date
-             try:
-                 cleaned_data['fecha'] = datetime.strptime(cleaned_data['fecha'], '%Y-%m-%d').date()
-             except ValueError:
-                 # Si la conversión falla, usar la fecha actual
-                 cleaned_data['fecha'] = timezone.now().date()
+            # Lógica para la fecha (se mantiene)
+            if 'fecha' not in cleaned_data or not isinstance(cleaned_data.get('fecha'), date):
+                cleaned_data['fecha'] = timezone.now().date()
 
-
-        # Asegurar que la fecha final sea un objeto date
-        if not isinstance(cleaned_data.get('fecha'), date):
-             cleaned_data['fecha'] = timezone.now().date()
-
-
-        return cleaned_data
+            return cleaned_data
 
 
 

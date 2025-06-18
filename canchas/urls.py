@@ -67,6 +67,8 @@ urlpatterns += [
     path('cierre-caja/realizar/', views.RealizarCierreCajaView.as_view(), name='realizar-cierre-caja'),
     path('cierre-caja/historial/', views.HistorialCierreCajaView.as_view(), name='historial-cierre-caja'),
     path('cierre-caja/detalle/<int:pk>/', views.CierreCajaDetalleView.as_view(), name='cierre-caja-detalle'),
+     path('cierre-caja/detalle/<int:pk>/descargar/pdf/', views.DescargarCierreCajaPDFView.as_view(), name='descargar-cierre-caja-pdf'),
+     path('cierre-caja/generales/', views.CierreCajaGeneralListView.as_view(), name='cierre-caja-generales'),
 ]
 
 

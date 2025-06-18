@@ -73,10 +73,10 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.view_name == 'cierre-caja' %}active{% endif %}" href="{% url 'cierre-caja' %}">Cierre de Caja</a>
             </li>
-            <!-- ====== FIN: CÓDIGO MODIFICADO ====== -->
+            <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'movimientos-list' %}active{% endif %}" href="{% url 'movimientos-list' %}">Movimientos</a></li>
 
             {% if user.is_superuser or user|has_group:"Admins" %}
-              <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'movimientos-list' %}active{% endif %}" href="{% url 'movimientos-list' %}">Movimientos</a></li>
+              
               <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'historial-view' %}active{% endif %}" href="{% url 'historial-view' %}">Resúmenes</a></li>
               <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name == 'stock_listar' %}active{% endif %}" href="{% url 'stock_listar' %}">Stock</a></li>
               <li class="nav-item"><a class="nav-link {% if request.resolver_match.view_name|slice:':5' == 'user-' %}active{% endif %}" href="{% url 'user-list' %}">Cuentas</a></li>

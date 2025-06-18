@@ -244,10 +244,6 @@ class Ingreso(models.Model):
         verbose_name=_("Cierre de Caja Asociado")
     )
 
-
-
-
-
     reserva = models.ForeignKey(
         Reserva,
         on_delete=models.SET_NULL,  # Mantener registro de ingreso si se borra reserva
@@ -607,12 +603,10 @@ class Venta(models.Model):
     metodo_pago = models.CharField(
         _("Método de Pago"),
         max_length=20,
-        choices=Ingreso.METODO_PAGO_CHOICES, # Reutilizamos las choices
-        blank=False, null=False, # Hacemos que sea obligatorio para la venta directa
+        choices=Ingreso.METODO_PAGO_CHOICES,
+        blank=False, null=False,
         default='efectivo'
     )
-    
-    # --- CAMPO NUEVO Y NECESARIO ---
     vendedor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -621,15 +615,14 @@ class Venta(models.Model):
         related_name='ventas_realizadas',
         verbose_name=_("Vendedor")
     )
-    # --- FIN DEL CAMPO NUEVO ---
-
     cierre_caja = models.ForeignKey(
-        'CierreDeCaja', # Usamos string para evitar importación circular
+        'CierreDeCaja',
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='ventas_incluidas',
         verbose_name=_("Cierre de Caja Asociado")
     )
+    
     class Meta:
         verbose_name = _("Venta")
         verbose_name_plural = _("Ventas")
@@ -642,68 +635,53 @@ class Venta(models.Model):
 
     @property
     def total_venta(self):
-        """Calcula el total de la línea de venta."""
         if self.cantidad is not None and self.precio_unitario is not None:
             return self.cantidad * self.precio_unitario
         return Decimal('0.00')
 
     def clean(self):
-        """Validar que la cantidad y el precio sean positivos."""
         if self.cantidad is not None and self.cantidad <= 0:
             raise ValidationError(_('La cantidad vendida debe ser mayor a cero.'))
 
+    # --- MÉTODO SAVE CORREGIDO Y SIMPLIFICADO ---
     def save(self, *args, **kwargs):
-        is_new = self.pk is None 
+        is_new = self.pk is None  # Comprobar si es una nueva instancia ANTES de guardar
 
+        # Asignar precio si no se proporcionó
         if self.precio_unitario is None and self.extra:
             self.precio_unitario = self.extra.precio_actual
 
-        # Primero guarda la venta para tener un PK
-        super().save(*args, **kwargs) 
-        
-        # Lógica de creación de ingreso y reducción de stock
-        if is_new and not self.ingreso:
-            if self.precio_unitario is not None:
-                total = self.total_venta
+        # Guardar la venta principal para obtener un PK
+        super().save(*args, **kwargs)
+
+        # Si es una nueva venta, crear ingreso asociado y reducir stock UNA SOLA VEZ
+        if is_new:
+            # Crear el ingreso asociado a esta venta
+            if not self.ingreso and self.total_venta > 0:
+                ingreso_creado = Ingreso.objects.create(
+                    venta=self, # Asociar a esta venta
+                    fecha=self.fecha_venta.date(),
+                    monto=self.total_venta,
+                    descripcion=f"Venta: {self.cantidad} x {self.extra.nombre}",
+                    metodo_pago=self.metodo_pago,
+                    responsable=self.vendedor,
+                    reserva=self.reserva
+                )
+                # Actualizar el campo 'ingreso' en la venta sin llamar a save() de nuevo
+                Venta.objects.filter(pk=self.pk).update(ingreso=ingreso_creado)
+                self.ingreso = ingreso_creado
+
+            # Reducir el stock
+            if self.extra and self.cantidad > 0:
                 try:
-                    ingreso_creado = Ingreso.objects.create(
-                        reserva=self.reserva,
-                        fecha=self.fecha_venta.date(),
-                        monto=total,
-                        descripcion=f"Venta: {self.cantidad} x {self.extra.nombre}",
-                        metodo_pago=self.metodo_pago,
-                        venta=self,
-                        responsable=self.vendedor # <-- LÍNEA CLAVE: Asigna el responsable
-                    )
-                    # Actualiza la venta con el ingreso creado
-                    Venta.objects.filter(pk=self.pk).update(ingreso=ingreso_creado)
-                    self.ingreso = ingreso_creado
-
-                    # Mover la lógica de stock aquí para que solo se ejecute si el ingreso se creó bien
-                    if self.extra and self.cantidad > 0:
-                        try:
-                            stock = Stock.objects.select_for_update().get(extra=self.extra)
-                            stock.reducir_stock(self.cantidad)
-                        except Stock.DoesNotExist:
-                            print(f"Error CRÍTICO post-venta: No se encontró stock para {self.extra.nombre} (Venta ID: {self.pk}) para reducir.")
-                        except ValidationError as e:
-                            print(f"Error CRÍTICO post-venta: No se pudo reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e}")
-
-                except Exception as e:
-                    print(f"Error CRÍTICO al procesar Venta {self.pk}: {e}")
-            else:
-                 print(f"Advertencia: No se pudo crear ingreso para Venta {self.pk} porque falta precio_unitario.")
-
-        if is_new and ingreso_creado and self.extra and self.cantidad > 0:
-            try:
-                stock = Stock.objects.select_for_update().get(extra=self.extra)
-                stock.reducir_stock(self.cantidad)
-            except Stock.DoesNotExist:
-                print(f"Error CRÍTICO post-venta: No se encontró stock para {self.extra.nombre} (Venta ID: {self.pk}) para reducir.")
-            except ValidationError as e:
-                print(f"Error CRÍTICO post-venta: No se pudo reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e}")
-            except Exception as e_stock:
-                 print(f"Error INESPERADO post-venta al reducir stock para {self.extra.nombre} (Venta ID: {self.pk}). Error: {e_stock}")
+                    # Usar select_for_update para bloquear la fila de stock y evitar condiciones de carrera
+                    stock = Stock.objects.select_for_update().get(extra=self.extra)
+                    stock.reducir_stock(self.cantidad) # reducir_stock ya llama a save() en el modelo Stock
+                except Stock.DoesNotExist:
+                    # Este error es grave. Debería registrarse o notificarse.
+                    print(f"ERROR CRÍTICO: No se encontró stock para el producto '{self.extra.nombre}' (ID Venta: {self.pk}). El stock no fue reducido.")
+                except ValidationError as e:
+                    print(f"ERROR DE VALIDACIÓN: No se pudo reducir el stock para '{self.extra.nombre}' (ID Venta: {self.pk}). Error: {e}")
 
 
 

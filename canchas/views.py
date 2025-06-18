@@ -318,7 +318,7 @@ class ReservaExitosaView(TemplateView):
                 wa_params['text'] = mensaje_texto
                 context['reserva_confirmada'] = True
 
-        context['whatsapp_url'] = f"https://wa.me/5493873546645?{urlencode(wa_params)}"
+        context['whatsapp_url'] = f"https://wa.me/5493875908958?{urlencode(wa_params)}"
         return context
 
 
@@ -813,6 +813,271 @@ class ReservarFechaView(View):
         return slots_del_dia
 
 
+
+class DescargarCierreCajaPDFView(BaseReportPDFView):
+
+    def get(self, request, pk):
+        try:
+            # Misma lógica de seguridad
+            cierre = get_object_or_404(CierreDeCaja, pk=pk)
+            # Simple check, puedes hacerlo más robusto
+            if not request.user.is_superuser and cierre.usuario != request.user:
+                 messages.error(request, "No tienes permiso para descargar este cierre.")
+                 return redirect('historial-cierre-caja')
+        except CierreDeCaja.DoesNotExist:
+            messages.error(request, "Cierre de caja no encontrado.")
+            return redirect('historial-cierre-caja')
+
+        # Obtener los movimientos
+        ingresos = cierre.ingresos_incluidos.all()
+        egresos = cierre.egresos_incluidos.all()
+
+        # --- CAMBIO CLAVE: Usamos la función de ayuda ---
+        movimientos_por_metodo = _procesar_movimientos_por_metodo(ingresos, egresos)
+        
+        # --- Construcción del PDF ---
+        buffer = io.BytesIO()
+        story = []
+
+        # Título y Resumen General (igual que antes)
+        titulo_str = f"Detalle del Cierre de Caja del {cierre.fecha_cierre.strftime('%d/%m/%Y %H:%M')}"
+        story.append(Paragraph(titulo_str, self.styles['h1']))
+        story.append(Paragraph(f"Realizado por: {cierre.usuario.username}", self.styles['Normal']))
+        story.append(Spacer(1, 0.7*cm))
+        # ... (tabla de resumen general igual que antes) ...
+        resumen_data = [
+            ['Total Ingresos:', format_currency(cierre.total_ingresos)],
+            ['Total Egresos:', format_currency(cierre.total_egresos)],
+            ['Balance Final:', format_currency(cierre.balance_cierre)],
+        ]
+        resumen_table = Table(resumen_data, colWidths=[4*cm, 4*cm])
+        resumen_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'), ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 2), (-1, 2), 'Helvetica-Bold'), ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('LEFTPADDING', (0,0), (-1,-1), 5), ('RIGHTPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(resumen_table)
+
+        # --- INICIO: Bucle de Tablas por Método de Pago ---
+        for metodo, data in movimientos_por_metodo.items():
+            story.append(Spacer(1, 1*cm))
+            story.append(Paragraph(data['display_name'], self.styles['h2']))
+            
+            # Encabezados de la tabla
+            data_tabla = [['Fecha', 'Tipo', 'Descripción', 'Asociado a', 'Monto']]
+            col_widths = [2*cm, 1.5*cm, 6.5*cm, 4*cm, 2.5*cm]
+            
+            # Filas de movimientos
+            for mov in data['movimientos']:
+                fecha_str = mov.fecha.strftime('%d/%m/%y')
+                tipo_str = "Ingreso" if mov.tipo_movimiento == 'ingreso' else "Egreso"
+                monto_str = format_currency(mov.monto)
+                desc_p = Paragraph(mov.descripcion or '-', self.styles['Normal'])
+                asociado_str = get_ingreso_asociado_str(mov) if mov.tipo_movimiento == 'ingreso' else get_egreso_asociado_str(mov)
+                asoc_p = Paragraph(asociado_str, self.styles['Normal'])
+                data_tabla.append([fecha_str, tipo_str, desc_p, asoc_p, monto_str])
+            
+            # Filas de subtotales
+            data_tabla.append([Paragraph('<b>Subtotal Ingresos</b>', self.styles['Normal']), '', '', '', format_currency(data['total_ingresos'])])
+            data_tabla.append([Paragraph('<b>Subtotal Egresos</b>', self.styles['Normal']), '', '', '', format_currency(data['total_egresos'])])
+            data_tabla.append([Paragraph('<b>BALANCE MÉTODO</b>', self.styles['Normal']), '', '', '', format_currency(data['subtotal'])])
+
+            tabla = Table(data_tabla, colWidths=col_widths, repeatRows=1)
+            tabla.setStyle(TableStyle([
+                self.table_style_header, self.table_style_header_text, self.table_style_grid,
+                self.table_style_valign_middle, self.table_style_padding,
+                ('ALIGN', (4, 0), (4, -1), 'RIGHT'), # Alinear Monto
+                ('ALIGN', (0, 0), (1, -1), 'CENTER'), # Alinear Fecha y Tipo
+                # Estilos para las filas de subtotales
+                ('SPAN', (0, -3), (3, -3)), ('BACKGROUND', (0, -3), (-1, -3), colors.lightgreen), # Ingresos
+                ('SPAN', (0, -2), (3, -2)), ('BACKGROUND', (0, -2), (-1, -2), colors.lightcoral), # Egresos
+                ('SPAN', (0, -1), (3, -1)), ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey), # Balance
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'), # Balance en negrita
+            ]))
+            story.append(tabla)
+        # --- FIN: Bucle de Tablas ---
+
+        # Generar y devolver la respuesta
+        self.build_pdf(buffer, story)
+        buffer.seek(0)
+        
+        filename = f'cierre_caja_agrupado_{cierre.pk}_{cierre.fecha_cierre.strftime("%Y%m%d")}.pdf'
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+from collections import OrderedDict
+
+
+
+def _procesar_movimientos_por_metodo(ingresos, egresos):
+    """
+    Toma querysets de ingresos y egresos y los agrupa por método de pago.
+    Calcula subtotales para cada grupo.
+    """
+    # Usamos OrderedDict para mantener un orden predecible (Efectivo, Tarjeta, etc.)
+    movimientos_agrupados = OrderedDict()
+    
+    metodos_pago = Ingreso.METODO_PAGO_CHOICES
+    for key, display_name in metodos_pago:
+        movimientos_agrupados[key] = {
+            'display_name': display_name,
+            'movimientos': [],
+            'total_ingresos': Decimal('0.00'),
+            'total_egresos': Decimal('0.00'),
+            'subtotal': Decimal('0.00')
+        }
+    
+    movimientos_agrupados['sin_metodo'] = {
+        'display_name': 'Sin Método de Pago / Varios',
+        'movimientos': [],
+        'total_ingresos': Decimal('0.00'),
+        'total_egresos': Decimal('0.00'),
+        'subtotal': Decimal('0.00')
+    }
+
+    # Procesar Ingresos
+    for ingreso in ingresos:
+        ingreso.tipo_movimiento = 'ingreso'
+        
+        # --- LÓGICA DE CATEGORIZACIÓN AÑADIDA AQUÍ ---
+        if ingreso.venta:
+            if ingreso.descripcion and 'Mov. Rápido:' in ingreso.descripcion:
+                ingreso.categoria_movimiento = 'Movimiento General'
+            else:
+                ingreso.categoria_movimiento = 'Venta'
+        elif ingreso.reserva:
+            ingreso.categoria_movimiento = 'Turno de Cancha'
+        else:
+            ingreso.categoria_movimiento = 'Movimiento General'
+        # --- FIN LÓGICA DE CATEGORIZACIÓN ---
+
+        metodo = ingreso.metodo_pago if ingreso.metodo_pago else 'sin_metodo'
+        if metodo in movimientos_agrupados:
+            movimientos_agrupados[metodo]['movimientos'].append(ingreso)
+            movimientos_agrupados[metodo]['total_ingresos'] += ingreso.monto
+
+    # Procesar Egresos
+    for egreso in egresos:
+        egreso.tipo_movimiento = 'egreso'
+        
+        # --- LÓGICA DE CATEGORIZACIÓN AÑADIDA AQUÍ ---
+        # Todos los egresos son "Movimiento General" para consistencia
+        egreso.categoria_movimiento = 'Movimiento General'
+        # --- FIN LÓGICA DE CATEGORIZACIÓN ---
+
+        metodo = egreso.metodo_pago if egreso.metodo_pago else 'sin_metodo'
+        if metodo in movimientos_agrupados:
+            movimientos_agrupados[metodo]['movimientos'].append(egreso)
+            movimientos_agrupados[metodo]['total_egresos'] += egreso.monto
+            
+    grupos_finales = OrderedDict()
+    for metodo, data in movimientos_agrupados.items():
+        if data['movimientos']:
+            data['subtotal'] = data['total_ingresos'] - data['total_egresos']
+            # Ordenar por fecha y luego por PK para consistencia
+            data['movimientos'].sort(key=lambda x: (x.fecha, x.pk))
+            grupos_finales[metodo] = data
+            
+    return grupos_finales
+
+
+# La vista CierreCajaDetalleView no necesita cambios, ya que ahora delega
+# toda la lógica de procesamiento a la función _procesar_movimientos_por_metodo que acabamos de modificar.
+class CierreCajaDetalleView(LoginRequiredMixin, DetailView):
+    model = CierreDeCaja
+    template_name = 'cierre_caja_detalle.html'
+    context_object_name = 'cierre'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Admins').exists():
+            return super().get_queryset()
+        return super().get_queryset().filter(usuario=user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cierre = self.object
+
+        # 1. Obtener los movimientos del cierre
+        ingresos = cierre.ingresos_incluidos.select_related('venta', 'reserva').all()
+        egresos = cierre.egresos_incluidos.select_related('producto', 'reserva', 'cancha').all()
+        
+        # 2. Combinar todos los movimientos en una sola lista y añadirles su categoría
+        todos_los_movimientos = []
+        for i in ingresos:
+            i.tipo_movimiento = 'ingreso'
+            if i.venta and 'Mov. Rápido:' not in (i.descripcion or ''):
+                i.categoria_movimiento = 'Venta'
+            elif i.reserva:
+                i.categoria_movimiento = 'Turno de Cancha'
+            else:
+                i.categoria_movimiento = 'Movimiento General'
+            todos_los_movimientos.append(i)
+
+        for e in egresos:
+            e.tipo_movimiento = 'egreso'
+            e.categoria_movimiento = 'Movimiento General'
+            todos_los_movimientos.append(e)
+
+        # 3. Ordenar la lista para la agrupación por Categoría y Método de Pago
+        orden_categorias = {'Venta': 1, 'Turno de Cancha': 2, 'Movimiento General': 3}
+        orden_metodos = {'efectivo': 1, 'transferencia': 2, 'tarjeta_debito': 3, 'tarjeta_credito': 4, 'mercado_pago': 5, 'otro': 6}
+
+        todos_los_movimientos.sort(key=lambda x: (
+            orden_categorias.get(x.categoria_movimiento, 99),
+            orden_metodos.get(x.metodo_pago, 99),
+            x.fecha,
+            x.pk
+        ))
+        
+        # 4. Crear la lista final estructurada que contendrá todo
+        lista_final_para_plantilla = []
+        
+        if todos_los_movimientos:
+            # Agrupamos primero por Categoría
+            for categoria, grupo_categoria in groupby(todos_los_movimientos, key=lambda x: x.categoria_movimiento):
+                lista_final_para_plantilla.append({'tipo_fila': 'encabezado_categoria', 'nombre': categoria})
+                
+                # Agrupamos por Método de Pago dentro de la categoría
+                for metodo_pago, grupo_metodo in groupby(list(grupo_categoria), key=lambda x: x.metodo_pago):
+                    movimientos_del_grupo = list(grupo_metodo)
+                    
+                    for mov in movimientos_del_grupo:
+                        mov.tipo_fila = 'movimiento'
+                        lista_final_para_plantilla.append(mov)
+                    
+                    ingresos_subtotal = sum(m.monto for m in movimientos_del_grupo if m.tipo_movimiento == 'ingreso')
+                    egresos_subtotal = sum(m.monto for m in movimientos_del_grupo if m.tipo_movimiento == 'egreso')
+                    balance_subtotal = ingresos_subtotal - egresos_subtotal
+                    
+                    lista_final_para_plantilla.append({
+                        'tipo_fila': 'subtotal',
+                        'nombre': movimientos_del_grupo[0].get_metodo_pago_display() or "Otro",
+                        'balance': balance_subtotal
+                    })
+        
+        # 5. Preparar el contexto final
+        fecha_formateada = cierre.fecha_cierre.strftime('%d/%m/%Y a las %H:%M')
+        context['titulo_pagina'] = f"Detalle del Cierre del {fecha_formateada}"
+        # Pasamos la nueva lista estructurada a la plantilla
+        context['lista_movimientos_estructurada'] = lista_final_para_plantilla
+        
+        return context
+
+
+
+
+
+
+
+
+
+
+
+
+
 # --- Vista de Cancelación (VERSIÓN DEFINITIVA Y SIMPLIFICADA) ---
 class CancelarReservaView(View):
     def post(self, request, reserva_pk):
@@ -1075,67 +1340,84 @@ class MovimientoRapidoCreateView(FormView):
     def form_valid(self, form):
         data = form.cleaned_data
         tipo = data['tipo']
-        monto = data.get('monto')
-        descripcion = data['descripcion']
-        fecha_a_usar = timezone.now().date() # Usar siempre fecha actual del servidor
+        # --- CAMBIO 1: Capturamos la descripción del formulario para usarla después ---
+        descripcion_usuario = data.get('descripcion')
+        fecha_a_usar = data.get('fecha', timezone.now().date())
         extra_seleccionado = data.get('extra')
         cantidad = data.get('cantidad')
-
-        # --- OBTENER Y ASIGNAR DEFAULT A METODO DE PAGO ---
-        metodo_pago = data.get('metodo_pago')
-        if not metodo_pago: # Si es None o cadena vacía
-            metodo_pago = 'otro' # <-- ASIGNA TU VALOR POR DEFECTO AQUÍ (asegúrate que 'otro' exista en choices)
-        # -------------------------------------------------
-
-        monto_a_guardar = monto if monto is not None else Decimal('0.00')
+        metodo_pago = data.get('metodo_pago') or 'otro'
+        monto_ingresado_usuario = data.get('monto')
+        monto_final_a_guardar = monto_ingresado_usuario if monto_ingresado_usuario is not None else Decimal('0.00')
 
         try:
             with transaction.atomic():
                 if tipo == 'ingreso':
-                    Ingreso.objects.create(
-                        fecha=fecha_a_usar,
-                        monto=monto_a_guardar,
-                        descripcion=descripcion,
-                        metodo_pago=metodo_pago # <-- Ahora siempre tendrá un valor
-                    )
-                    messages.success(self.request, f"Ingreso registrado.")
+                    if extra_seleccionado and cantidad:
+                        venta_creada = Venta.objects.create(
+                            extra=extra_seleccionado,
+                            cantidad=cantidad,
+                            precio_unitario=extra_seleccionado.precio_actual,
+                            metodo_pago=metodo_pago,
+                            vendedor=self.request.user,
+                            fecha_venta=timezone.now()
+                        )
+                        
+                        if venta_creada.ingreso:
+                            ingreso_asociado = venta_creada.ingreso
+                            ingreso_asociado.monto = monto_final_a_guardar
+                            
+                            # --- CAMBIO 2: Sobreescribimos la descripción para identificarlo ---
+                            # Creamos una descripción base que lo identifica como "Movimiento Rápido".
+                            nueva_descripcion = f"Mov. Rápido: {cantidad} x {extra_seleccionado.nombre}"
+                            
+                            # Si el usuario añadió una nota, la concatenamos.
+                            if descripcion_usuario:
+                                nueva_descripcion += f" - {descripcion_usuario}"
+                            
+                            ingreso_asociado.descripcion = nueva_descripcion
+                            ingreso_asociado.save()
+                        
+                        # --- CAMBIO 3: Actualizamos el mensaje de éxito ---
+                        messages.success(self.request, f"Movimiento rápido de '{extra_seleccionado.nombre}' registrado con un ingreso de ${monto_final_a_guardar}.")
+
+                    else: # Ingreso genérico (sin producto)
+                        Ingreso.objects.create(
+                            fecha=fecha_a_usar,
+                            monto=monto_final_a_guardar,
+                            # Usamos la descripción del usuario aquí
+                            descripcion=descripcion_usuario,
+                            metodo_pago=metodo_pago,
+                            responsable=self.request.user
+                        )
+                        messages.success(self.request, "Ingreso rápido (sin producto) registrado.")
 
                 elif tipo == 'egreso':
-                    producto_para_egreso = None
                     if extra_seleccionado and cantidad:
-                        # --- LÓGICA DE DESCUENTO DE STOCK ---
-                        try:
-                            producto = Extra.objects.get(pk=extra_seleccionado.pk)
-                            producto_para_egreso = producto
-                            stock_obj = Stock.objects.select_for_update().get(extra=producto)
-                            try:
-                                stock_obj.reducir_stock(cantidad)
-                                messages.info(self.request, f"Stock de '{producto.nombre}' actualizado (-{cantidad}). Nuevo stock: {stock_obj.cantidad}.")
-                            except ValidationError as e:
-                                form.add_error('cantidad', str(e))
-                                return self.form_invalid(form)
-                        except Stock.DoesNotExist:
-                            # ... manejo de error stock ...
-                            return self.form_invalid(form)
-                        except Extra.DoesNotExist:
-                             # ... manejo de error extra ...
-                             return self.form_invalid(form)
-                        # --- FIN LÓGICA DE DESCUENTO ---
+                        stock_obj = Stock.objects.select_for_update().get(extra=extra_seleccionado)
+                        stock_obj.reducir_stock(cantidad)
+                        messages.info(self.request, f"Stock de '{extra_seleccionado.nombre}' actualizado.")
+                    
+                    # --- CAMBIO 4: Construimos la descripción para el egreso ---
+                    descripcion_egreso = descripcion_usuario
+                    if extra_seleccionado:
+                         # Si es una compra de producto, lo indicamos en la descripción.
+                         descripcion_egreso = f"Compra/Gasto de Producto: {extra_seleccionado.nombre}"
+                         if descripcion_usuario:
+                              descripcion_egreso += f" - {descripcion_usuario}"
 
                     Egreso.objects.create(
                         fecha=fecha_a_usar,
-                        monto=monto_a_guardar,
-                        descripcion=descripcion,
-                        metodo_pago=metodo_pago, # <-- Ahora siempre tendrá un valor
-                        producto=producto_para_egreso
-                        # No hay 'categoria' en este form
+                        monto=monto_final_a_guardar,
+                        descripcion=descripcion_egreso,
+                        metodo_pago=metodo_pago,
+                        producto=extra_seleccionado,
+                        responsable=self.request.user
                     )
-                    messages.success(self.request, f"Egreso registrado.")
+                    messages.success(self.request, f"Egreso rápido registrado por un monto de ${monto_final_a_guardar}.")
 
-                else:
-                    messages.error(self.request, "Tipo de movimiento inválido.")
-                    return self.form_invalid(form)
-
+        except ValidationError as e:
+            form.add_error(None, e)
+            return self.form_invalid(form)
         except Exception as e:
             messages.error(self.request, f"Ocurrió un error inesperado: {e}")
             import logging
@@ -1143,11 +1425,6 @@ class MovimientoRapidoCreateView(FormView):
             return self.form_invalid(form)
 
         return super().form_valid(form)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['titulo'] = "Registrar Movimiento Rápido"
-        return context
 
 
 
@@ -1351,38 +1628,30 @@ class ResumenesView(View):
 
 
 class HistorialDiarioDetalleView(View):
-    template_name = 'historial_diario_detalle.html' # Nueva plantilla que crearemos
+    template_name = 'historial_diario_detalle.html'
 
     def get(self, request, fecha_str):
         try:
-            # Intenta convertir la cadena de la URL a un objeto date
             fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d').date()
         except ValueError:
-            # Si el formato es inválido, muestra un error y redirige
             messages.error(request, "Formato de fecha inválido en la URL.")
-            return redirect('resumenes-view') # Redirige a la vista de resúmenes
+            return redirect('resumenes-view')
 
-        # Obtener todos los ingresos de esa fecha específica
-        ingresos_del_dia = Ingreso.objects.filter(fecha=fecha_obj).order_by('-pk') # Ordena por creación o como prefieras
+        # Obtener movimientos del día
+        ingresos_del_dia = Ingreso.objects.filter(fecha=fecha_obj)
+        egresos_del_dia = Egreso.objects.filter(fecha=fecha_obj)
 
-        # Obtener todos los egresos de esa fecha específica
-        egresos_del_dia = Egreso.objects.filter(fecha=fecha_obj).order_by('-pk')
+        # --- CAMBIO CLAVE: Usamos la función de ayuda ---
+        movimientos_por_metodo = _procesar_movimientos_por_metodo(ingresos_del_dia, egresos_del_dia)
 
-        # Calcular totales para mostrar en el resumen del día (opcional, pero útil)
-        total_ingresos = ingresos_del_dia.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
-
-        total_egresos = egresos_del_dia.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
-
+        # Calcular totales (esto se mantiene para el resumen general)
+        total_ingresos = sum(d['total_ingresos'] for d in movimientos_por_metodo.values())
+        total_egresos = sum(d['total_egresos'] for d in movimientos_por_metodo.values())
         balance_dia = total_ingresos - total_egresos
 
         context = {
             'fecha_vista': fecha_obj,
-            'ingresos_del_dia': ingresos_del_dia,
-            'egresos_del_dia': egresos_del_dia,
+            'movimientos_por_metodo': movimientos_por_metodo, # <-- Pasamos la data agrupada
             'total_ingresos': total_ingresos,
             'total_egresos': total_egresos,
             'balance_dia': balance_dia,
@@ -1392,88 +1661,61 @@ class HistorialDiarioDetalleView(View):
 
 
 class HistorialMensualDetalleView(View):
-    template_name = 'historial_mensual_detalle.html' # Nueva plantilla
+    template_name = 'historial_mensual_detalle.html'
 
     def get(self, request, year, month):
-        # Validación básica del mes
         if not 1 <= month <= 12:
              messages.error(request, "Mes inválido.")
              return redirect('resumenes-view')
-
-        # Intentar crear un objeto date para mostrar el mes/año (solo para display)
         try:
-            # Usamos el primer día del mes para representación
             fecha_representativa = date(year, month, 1)
         except ValueError:
              messages.error(request, "Año o mes inválido.")
              return redirect('resumenes-view')
 
-        # Filtrar Ingresos por año y mes
-        ingresos_del_mes = Ingreso.objects.filter(
-            fecha__year=year,
-            fecha__month=month
-        ).order_by('fecha', 'pk') # Ordenar por fecha dentro del mes
-
-        # Filtrar Egresos por año y mes
-        egresos_del_mes = Egreso.objects.filter(
-            fecha__year=year,
-            fecha__month=month
-        ).order_by('fecha', 'pk')
-
-        # Calcular totales del mes
-        total_ingresos = ingresos_del_mes.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
-        total_egresos = egresos_del_mes.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
+        # Filtrar movimientos del mes
+        ingresos_del_mes = Ingreso.objects.filter(fecha__year=year, fecha__month=month)
+        egresos_del_mes = Egreso.objects.filter(fecha__year=year, fecha__month=month)
+        
+        # --- CAMBIO CLAVE: Usamos la función de ayuda ---
+        movimientos_por_metodo = _procesar_movimientos_por_metodo(ingresos_del_mes, egresos_del_mes)
+        
+        # Calcular totales
+        total_ingresos = sum(d['total_ingresos'] for d in movimientos_por_metodo.values())
+        total_egresos = sum(d['total_egresos'] for d in movimientos_por_metodo.values())
         balance_mes = total_ingresos - total_egresos
-
+        
         context = {
-            'fecha_representativa': fecha_representativa, # Para mostrar título ej: "Abril 2025"
+            'fecha_representativa': fecha_representativa,
             'year': year,
             'month': month,
-            'ingresos_del_mes': ingresos_del_mes,
-            'egresos_del_mes': egresos_del_mes,
+            'movimientos_por_metodo': movimientos_por_metodo, # <-- Pasamos la data agrupada
             'total_ingresos': total_ingresos,
             'total_egresos': total_egresos,
             'balance_mes': balance_mes,
         }
         return render(request, self.template_name, context)
 
-# --- VISTA DETALLE ANUAL ---
+
 class HistorialAnualDetalleView(View):
-    template_name = 'historial_anual_detalle.html' # Nueva plantilla
+    template_name = 'historial_anual_detalle.html'
 
     def get(self, request, year):
-        # Validación básica del año (opcional)
-        # if year < 2000 or year > timezone.now().year + 1:
-        #    messages.error(request, "Año inválido.")
-        #    return redirect('resumenes-view')
+        # Filtrar movimientos del año
+        ingresos_del_ano = Ingreso.objects.filter(fecha__year=year)
+        egresos_del_ano = Egreso.objects.filter(fecha__year=year)
 
-        # Filtrar Ingresos por año
-        ingresos_del_ano = Ingreso.objects.filter(
-            fecha__year=year
-        ).order_by('fecha', 'pk') # Ordenar por fecha dentro del año
+        # --- CAMBIO CLAVE: Usamos la función de ayuda ---
+        movimientos_por_metodo = _procesar_movimientos_por_metodo(ingresos_del_ano, egresos_del_ano)
 
-        # Filtrar Egresos por año
-        egresos_del_ano = Egreso.objects.filter(
-            fecha__year=year
-        ).order_by('fecha', 'pk')
-
-        # Calcular totales del año
-        total_ingresos = ingresos_del_ano.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
-        total_egresos = egresos_del_ano.aggregate(
-            total=Coalesce(Sum('monto'), Decimal('0.0'), output_field=DecimalField())
-        )['total']
+        # Calcular totales
+        total_ingresos = sum(d['total_ingresos'] for d in movimientos_por_metodo.values())
+        total_egresos = sum(d['total_egresos'] for d in movimientos_por_metodo.values())
         balance_anual = total_ingresos - total_egresos
-
+        
         context = {
             'year': year,
-            'ingresos_del_ano': ingresos_del_ano,
-            'egresos_del_ano': egresos_del_ano,
+            'movimientos_por_metodo': movimientos_por_metodo, # <-- Pasamos la data agrupada
             'total_ingresos': total_ingresos,
             'total_egresos': total_egresos,
             'balance_anual': balance_anual,
@@ -1888,52 +2130,140 @@ class VentaCreateView( SuccessMessageMixin, CreateView):
         return context
 
 
+from itertools import chain, groupby
+from operator import attrgetter
+
+class CierreCajaGeneralListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'cierre_caja_generales.html'
+
+    def test_func(self):
+        """Solo superusuarios y miembros del grupo 'Admins' pueden acceder."""
+        return is_admin(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener todos los cierres, ordenados por usuario y luego por fecha
+        cierres_qs = CierreDeCaja.objects.select_related('usuario').order_by('usuario__username', '-fecha_cierre')
+        
+        # Agrupar los cierres por usuario usando itertools.groupby
+        cierres_agrupados = {
+            usuario: list(cierres)
+            for usuario, cierres in groupby(cierres_qs, key=lambda c: c.usuario)
+        }
+        
+        context['titulo_pagina'] = "Historial General de Cierres de Caja"
+        context['cierres_por_usuario'] = cierres_agrupados
+        return context
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class CierreCajaView(LoginRequiredMixin, ListView):
     template_name = 'cierre_caja.html'
-    context_object_name = 'movimientos_pendientes' # Nuevo nombre de contexto
+    context_object_name = 'movimientos_pendientes' # Mantenemos el nombre
 
     def get_queryset(self):
-        # Esta vista ya no usará un queryset directo, lo construiremos en get_context_data
         return None
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # 1. Obtener ingresos y egresos pendientes del usuario
+        # 1. Obtener movimientos (sin cambios)
         ingresos_pendientes = Ingreso.objects.filter(
             responsable=user, cierre_caja__isnull=True
-        )
+        ).select_related('venta', 'reserva')
+        
         egresos_pendientes = Egreso.objects.filter(
             responsable=user, cierre_caja__isnull=True
-        )
-
-        # 2. Combinar y ordenar los movimientos
-        # Añadimos atributos para poder identificarlos y ordenarlos en la plantilla
+        ).select_related('producto', 'reserva', 'cancha')
+        
+        # 2. Combinar y añadir categoría (sin cambios)
+        todos_los_movimientos = []
         for i in ingresos_pendientes:
             i.tipo_movimiento = 'ingreso'
-            i.fecha_movimiento = i.fecha # o i.venta.fecha_venta si es más preciso
+            if i.venta and 'Mov. Rápido:' not in (i.descripcion or ''):
+                i.categoria_movimiento = 'Venta'
+            elif i.reserva:
+                i.categoria_movimiento = 'Turno de Cancha'
+            else:
+                i.categoria_movimiento = 'Movimiento General'
+            todos_los_movimientos.append(i)
+
         for e in egresos_pendientes:
             e.tipo_movimiento = 'egreso'
-            e.fecha_movimiento = e.fecha
+            e.categoria_movimiento = 'Movimiento General'
+            todos_los_movimientos.append(e)
 
-        movimientos_combinados = sorted(
-            chain(ingresos_pendientes, egresos_pendientes),
-            key=attrgetter('fecha_movimiento'),
-            reverse=True
-        )
+        # 3. Ordenar para la agrupación (sin cambios)
+        orden_categorias = {'Venta': 1, 'Turno de Cancha': 2, 'Movimiento General': 3}
+        orden_metodos = {'efectivo': 1, 'transferencia': 2, 'tarjeta_debito': 3, 'tarjeta_credito': 4, 'mercado_pago': 5, 'otro': 6}
 
-        # 3. Calcular totales
+        todos_los_movimientos.sort(key=lambda x: (
+            orden_categorias.get(x.categoria_movimiento, 99), 
+            orden_metodos.get(x.metodo_pago, 99),
+            x.fecha, 
+            x.pk
+        ))
+        
+        # --- INICIO DE LA NUEVA LÓGICA ---
+        # 4. Crear una nueva lista que contendrá movimientos, encabezados Y subtotales
+        lista_final_para_plantilla = []
+        
+        # Agrupamos primero por Categoría
+        for categoria, grupo_categoria in groupby(todos_los_movimientos, key=lambda x: x.categoria_movimiento):
+            # Añadimos un "objeto" especial para el encabezado de la categoría
+            lista_final_para_plantilla.append({'tipo_fila': 'encabezado_categoria', 'nombre': categoria})
+            
+            # Agrupamos por Método de Pago dentro de la categoría
+            for metodo_pago, grupo_metodo in groupby(list(grupo_categoria), key=lambda x: x.metodo_pago):
+                # Convertimos el grupo a una lista para poder iterarlo varias veces
+                movimientos_del_grupo = list(grupo_metodo)
+                
+                # Añadimos todos los movimientos del grupo a la lista final
+                for mov in movimientos_del_grupo:
+                    mov.tipo_fila = 'movimiento' # Marcamos esta fila como un movimiento normal
+                    lista_final_para_plantilla.append(mov)
+                
+                # Calculamos el subtotal para este grupo
+                ingresos_subtotal = sum(m.monto for m in movimientos_del_grupo if m.tipo_movimiento == 'ingreso')
+                egresos_subtotal = sum(m.monto for m in movimientos_del_grupo if m.tipo_movimiento == 'egreso')
+                balance_subtotal = ingresos_subtotal - egresos_subtotal
+                
+                # Añadimos un "objeto" especial para el subtotal
+                lista_final_para_plantilla.append({
+                    'tipo_fila': 'subtotal',
+                    'nombre': movimientos_del_grupo[0].get_metodo_pago_display() or "Otro",
+                    'balance': balance_subtotal
+                })
+        # --- FIN DE LA NUEVA LÓGICA ---
+        
+        # 5. Calcular totales generales (sin cambios)
         total_ingresos = ingresos_pendientes.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
         total_egresos = egresos_pendientes.aggregate(total=Coalesce(Sum('monto'), Decimal('0.00')))['total']
         balance = total_ingresos - total_egresos
-
+        
+        # 6. Preparar el contexto final
         context['titulo_pagina'] = "Cierre de Caja"
-        context['movimientos_pendientes'] = movimientos_combinados
+        # Pasamos la nueva lista, que contiene todo (encabezados, movimientos, subtotales)
+        context['movimientos_pendientes'] = lista_final_para_plantilla
         context['total_ingresos'] = total_ingresos
         context['total_egresos'] = total_egresos
         context['balance_a_cerrar'] = balance
-        
+        # Añadimos una bandera simple para saber si hay algo que mostrar
+        context['hay_movimientos'] = bool(lista_final_para_plantilla)
+
         return context
 
 class RealizarCierreCajaView(LoginRequiredMixin, View):
@@ -1996,33 +2326,28 @@ class CierreCajaDetalleView(LoginRequiredMixin, DetailView):
     context_object_name = 'cierre'
 
     def get_queryset(self):
-        return super().get_queryset().filter(usuario=self.request.user)
+        # Esta parte se mantiene igual
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Admins').exists():
+            return super().get_queryset()
+        return super().get_queryset().filter(usuario=user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         cierre = self.object
 
-        # Obtenemos los movimientos ya vinculados a través del related_name
+        # Obtenemos los movimientos como antes
         ingresos = cierre.ingresos_incluidos.all()
         egresos = cierre.egresos_incluidos.all()
         
-        for i in ingresos:
-            i.tipo_movimiento = 'ingreso'
-            i.fecha_movimiento = i.fecha
-        for e in egresos:
-            e.tipo_movimiento = 'egreso'
-            e.fecha_movimiento = e.fecha
-
-        # Combinar y ordenar para la tabla de detalle
-        movimientos_combinados = sorted(
-            chain(ingresos, egresos),
-            key=attrgetter('fecha_movimiento'),
-            reverse=True
-        )
-
+        # --- CAMBIO CLAVE: Usamos la nueva función ---
+        movimientos_por_metodo = _procesar_movimientos_por_metodo(ingresos, egresos)
+        
         fecha_formateada = cierre.fecha_cierre.strftime('%d/%m/%Y a las %H:%M')
         context['titulo_pagina'] = f"Detalle del Cierre del {fecha_formateada}"
-        context['movimientos_del_cierre'] = movimientos_combinados
+        # Pasamos la nueva estructura de datos a la plantilla
+        context['movimientos_por_metodo'] = movimientos_por_metodo
+        
         return context
 
 # --- VISTA DE LISTADO DE VENTAS (Sin cambios necesarios para esta funcionalidad) ---

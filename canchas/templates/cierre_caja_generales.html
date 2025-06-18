@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load i18n humanize %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ titulo_pagina }}</h1>
+    <a href="{% url 'cierre-caja' %}" class="btn btn-sm btn-outline-secondary">Volver a Mi Cierre</a>
+</div>
+
+{% for usuario, cierres in cierres_por_usuario.items %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Cierres de: <strong class="text-primary">{{ usuario.username }}</strong></h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha del Cierre</th>
+                        <th class="text-end">Ingresos</th>
+                        <th class="text-end">Egresos</th>
+                        <th class="text-end">Balance del Cierre</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cierre in cierres %}
+                    <tr>
+                        <td>{{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</td>
+                        <td class="text-end text-success">+${{ cierre.total_ingresos|floatformat:2|intcomma }}</td>
+                        <td class="text-end text-danger">-${{ cierre.total_egresos|floatformat:2|intcomma }}</td>
+                        <td class="text-end fw-bold">${{ cierre.balance_cierre|floatformat:2|intcomma }}</td>
+                        <td class="text-center">
+                            <a href="{% url 'cierre-caja-detalle' pk=cierre.pk %}" class="btn btn-sm btn-info">Ver Detalle</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="alert alert-info">No se encontraron cierres de caja en el sistema.</div>
+{% endfor %}
+
+{% endblock %}
