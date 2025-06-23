@@ -24,7 +24,6 @@
 
   <style>
       :root { 
-        /* Para que el logo grande quepa, la barra necesita más altura */
         --navbar-height: 100px; 
       }
       html, body { height: 100%; }
@@ -33,25 +32,20 @@
       .alert { margin-top: 1rem; }
       .flatpickr-calendar.inline { margin-bottom: 1rem; }
 
-      /* ======================================================== */
-      /* ===== CAMBIO 1: NUEVOS ESTILOS PARA LOGO CENTRADO ===== */
-      /* ======================================================== */
       .navbar-center-logo-container {
         position: absolute;
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        /* Para que no se pueda hacer clic "a través" de él si no hay logo */
         pointer-events: none; 
       }
 
       .navbar-center-logo-img {
-          height: 80px; /* Tamaño del logo grande */
+          height: 80px;
           width: auto;
-          pointer-events: auto; /* El logo sí debe ser clickeable */
+          pointer-events: auto;
       }
       
-      /* Aseguramos que el navbar-brand para usuarios logueados se vea bien */
       .navbar-brand {
         z-index: 10;
       }
@@ -60,9 +54,6 @@
 </head>
 <body>
 
-  <!-- ========================================================================= -->
-  <!-- ===== CAMBIO 2: BARRA BLANCA CON SOMBRA Y AJUSTE DE POSICIONAMIENTO ===== -->
-  <!-- ========================================================================= -->
   <nav class="navbar navbar-expand-md navbar-light bg-light fixed-top shadow-sm">
     <div class="container-fluid position-relative">
       
@@ -70,17 +61,16 @@
         <!-- Si el usuario está logueado, se mantiene el brand "Home" a la izquierda -->
         <a class="navbar-brand" href="{% url 'home' %}">Home</a>
       {% else %}
-        <!-- Para el público, no hay brand a la izquierda. El logo está en el centro. -->
+        <!-- Para el público, dejamos un espacio para alinear el menú hamburguesa en móvil -->
         <a class="navbar-brand" href="{% url 'public-home' %}">
-          <!-- Espacio vacío para que el botón de menú hamburguesa (en móvil) se alinee bien -->
            
         </a>
       {% endif %}
 
-      <!-- ================================================== -->
-      <!-- ===== CAMBIO 3: LOGO CENTRADO (SOLO PÚBLICO) ===== -->
-      <!-- ================================================== -->
-      {% if not user.is_authenticated %}
+      <!-- ============================================================= -->
+      <!-- ===== CAMBIO CLAVE: LOGO SOLO SI NO ES LA PÁGINA DE LOGIN ===== -->
+      <!-- ============================================================= -->
+      {% if not user.is_authenticated and request.resolver_match.view_name != 'login' %}
       <div class="navbar-center-logo-container">
           <a href="{% url 'public-home' %}">
               <img src="{% static 'img/foto-login.jpeg' %}" 
@@ -101,7 +91,6 @@
             <li class="nav-item">
               <a class="nav-link" href="{% url 'cancha-list' %}">Canchas</a>
             </li>
-            <!-- ... tus otros enlaces para usuarios logueados ... -->
             <li class="nav-item">
               <a class="nav-link" href="{% url 'venta_registrar' %}">Ventas</a>
             </li>
@@ -124,8 +113,6 @@
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Hola, {{ user.username }}
-                {% with user.groups.first as group %}{% if group %}<span class="badge bg-secondary ms-1">{{ group.name }}</span>{% endif %}{% endwith %}
-                {% if user.is_superuser %}<span class="badge bg-danger ms-1">Superuser</span>{% endif %}
               </a>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
                 <li>
@@ -135,9 +122,7 @@
               </ul>
             </li>
           {% else %}
-            <!-- ============================================================ -->
-            <!-- ===== CAMBIO 4: ENLACE DE INICIAR SESIÓN COMO BOTÓN ===== -->
-            <!-- ============================================================ -->
+            <!-- El botón de Iniciar Sesión ahora se muestra siempre que el usuario no esté logueado -->
             <li class="nav-item">
               <a class="btn btn-outline-primary" href="{% url 'login' %}?next={{ request.path }}">Iniciar Sesión</a>
             </li>
