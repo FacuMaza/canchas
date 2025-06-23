@@ -1,12 +1,14 @@
 from django.urls import path
 from canchas import views
 from django.contrib.auth import views as auth_views
+from .views import *
 
 
 
 urlpatterns = [
     path('', views.PublicHomeView.as_view(), name='public-home'),
     path('dashboard/', views.dashboard, name="dashboard"),
+    path('home/', HomeView.as_view(), name='home'),
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('reservar-turno/<int:cancha_pk>/<str:fecha>/', views.PublicReservarClienteView.as_view(), name='public-reservar-cliente'),

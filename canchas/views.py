@@ -102,6 +102,95 @@ class BaseReportPDFView(View):
 
 
 
+class HomeView(LoginRequiredMixin, View):
+    template_name = 'home.html' # El nuevo archivo HTML que crearemos
+
+    def _generar_slots_disponibles(self, cancha, fecha_obj, reservas_del_dia):
+        """
+        Una versión simplificada de tu generador de slots.
+        Devuelve SOLO los slots que están disponibles.
+        """
+        slots_disponibles = []
+        # Reutilizamos la lógica de horarios que ya tienes
+        hora_apertura = time(7, 0)
+        hora_cierre = time(2, 0)
+
+        # Filtramos las reservas para esta cancha específica
+        reservas_de_la_cancha = {
+            r.hora_inicio for r in reservas_del_dia if r.cancha_id == cancha.id
+        }
+
+        current_dt = datetime.combine(fecha_obj, hora_apertura)
+        limite_dt = datetime.combine(fecha_obj + timedelta(days=1), hora_cierre) if hora_cierre < hora_apertura else datetime.combine(fecha_obj, hora_cierre)
+
+        while current_dt < limite_dt:
+            hora_inicio = current_dt.time()
+            # Si la hora de inicio NO está en las reservas de la cancha, está disponible
+            if hora_inicio not in reservas_de_la_cancha:
+                slots_disponibles.append({
+                    'hora_inicio_str': hora_inicio.strftime('%H:%M'),
+                    # Dejamos la URL lista para la plantilla
+                    'url_reserva': reverse('reservar-fecha', args=[cancha.pk, fecha_obj.strftime('%Y-%m-%d')])
+                })
+            
+            # Usamos la duración del turno de la cancha si existe, si no, 30 min por defecto
+            duracion = getattr(cancha, 'duracion_turno_minutos', 30)
+            current_dt += timedelta(minutes=duracion)
+            
+        return slots_disponibles
+
+    def get(self, request, *args, **kwargs):
+        # 1. Determinar la fecha a consultar (del parámetro GET o hoy)
+        fecha_str = request.GET.get('fecha', timezone.localdate().strftime('%Y-%m-%d'))
+        try:
+            fecha_seleccionada = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            fecha_seleccionada = timezone.localdate()
+            fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
+            messages.warning(request, "Formato de fecha inválido. Mostrando turnos para hoy.")
+
+        # 2. Obtener todas las canchas activas
+        canchas_activas = Cancha.objects.filter(esta_activa=True).order_by('nombre')
+        
+        # 3. Optimización: Obtener todas las reservas del día en una sola consulta
+        reservas_del_dia = Reserva.objects.filter(
+            fecha=fecha_seleccionada,
+            estado__in=['confirmada', 'pendiente_pago', 'pendiente']
+        ).select_related('cancha')
+
+        # 4. Preparar la estructura de datos para la plantilla
+        data_para_plantilla = []
+        for cancha in canchas_activas:
+            slots_disponibles = self._generar_slots_disponibles(cancha, fecha_seleccionada, reservas_del_dia)
+            data_para_plantilla.append({
+                'cancha': cancha,
+                'slots_disponibles': slots_disponibles,
+            })
+
+        context = {
+            'titulo_pagina': f"Turnos Disponibles - {fecha_seleccionada.strftime('%d/%m/%Y')}",
+            'canchas_con_slots': data_para_plantilla,
+            'fecha_seleccionada_str': fecha_str,
+            'fecha_seleccionada_obj': fecha_seleccionada,
+        }
+        return render(request, self.template_name, context)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<!-- El título ahora tiene una clase para ajustar el tamaño de fuente en móviles -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h1 class="h2 fs-4 fs-md-2">{{ titulo_pagina }}</h1>
+</div>
+
+<!-- ===================================== -->
+<!-- ===== FORMULARIO DE FECHA MEJORADO ===== -->
+<!-- ===================================== -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Seleccionar otra fecha</h5>
+    <!-- Usamos un form-group para mejor semántica y espaciado -->
+    <form method="get" action="{% url 'home' %}" class="row g-3 align-items-end">
+      <!-- El input ocupa todo el ancho en móvil (col-12) y se ajusta en pantallas más grandes -->
+      <div class="col-12 col-sm-7 col-md-5">
+        <label for="datepicker" class="form-label">Fecha</label>
+        <input type="text" class="form-control" id="datepicker" name="fecha" value="{{ fecha_seleccionada_str }}">
+      </div>
+      <!-- El botón también ocupa todo el ancho en móvil, alineándose debajo del input -->
+      <div class="col-12 col-sm-5 col-md-4">
+        <!-- d-grid hace que el botón dentro ocupe el 100% del ancho del div -->
+        <div class="d-grid d-sm-block">
+          <button type="submit" class="btn btn-primary">Ver Disponibilidad</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- ===== LISTADO DE CANCHAS CON TARJETAS RESPONSIVE ===== -->
+<!-- ========================================================= -->
+<div class="row">
+  {% for data in canchas_con_slots %}
+  <!-- Clases responsives:
+    - col-12: 1 columna en pantallas extra pequeñas (móviles en vertical)
+    - col-md-6: 2 columnas en pantallas medianas (tablets)
+    - col-lg-4: 3 columnas en pantallas grandes (escritorios)
+  -->
+  <div class="col-12 col-md-6 col-lg-4 mb-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header bg-dark text-white">
+        <h5 class="mb-0 fs-6">{{ data.cancha.nombre }}</h5>
+        <small class="text-white-50">{{ data.cancha.get_tipo_deporte_display }}</small>
+      </div>
+      <div class="card-body d-flex flex-column">
+        {% if data.slots_disponibles %}
+          <p class="card-text small text-muted">Turnos disponibles para reservar:</p>
+          <div class="d-flex flex-wrap gap-2">
+            <!-- MEJORA: Se quitó la clase 'btn-sm' para que los botones sean más grandes y fáciles de tocar -->
+            {% for slot in data.slots_disponibles %}
+              <a href="{{ slot.url_reserva }}" class="btn btn-outline-success">
+                {{ slot.hora_inicio_str }}
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="alert alert-warning mb-0 p-2 text-center small">
+            No hay turnos disponibles.
+          </div>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-light border-top-0">
+        <!-- MEJORA: El botón ahora ocupa todo el ancho del footer para ser un claro "call to action" -->
+        <div class="d-grid">
+            <a href="{% url 'reservar-fecha' data.cancha.pk fecha_seleccionada_str %}" class="btn btn-secondary">Ver Grilla Completa »</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col">
+    <div class="alert alert-info">No hay canchas activas en el sistema.</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // El script de flatpickr no necesita cambios, está perfecto.
+  document.addEventListener("DOMContentLoaded", function() {
+    flatpickr("#datepicker", {
+      locale: "es",
+      dateFormat: "Y-m-d",
+      altInput: true,
+      // Con la corrección de la respuesta anterior
+      altFormat: "l, j \\de F \\de Y",
+      defaultDate: "{{ fecha_seleccionada_str }}",
+    });
+  });
+</script>
+{% endblock %}
