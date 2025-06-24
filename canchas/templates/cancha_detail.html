@@ -44,30 +44,26 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Encuentra el elemento del calendario en el DOM
         const calendarElement = document.getElementById('inline-calendar');
-
-        // Verifica si el elemento del calendario existe antes de continuar
         if (calendarElement) {
-            // Obtiene el ID de la cancha desde el atributo data-*
             const canchaId = calendarElement.dataset.canchaId;
+            
+            // --- NUEVA LÍNEA: Obtiene la fecha operativa desde el contexto de Django ---
+            const fechaDefault = '{{ fecha_operativa_actual_str }}';
 
-            // Verifica si obtuvimos un ID de cancha válido
             if (canchaId) {
-                // Inicializa Flatpickr en el div #inline-calendar
                 flatpickr(calendarElement, {
                     inline: true,
                     minDate: "today",
                     locale: "es",
                     dateFormat: "Y-m-d",
-                    defaultDate: "today",
+
+                    // --- LÍNEA MODIFICADA: Usa la fecha operativa como default ---
+                    defaultDate: fechaDefault, 
 
                     onChange: function(selectedDates, dateStr, instance) {
                         if (selectedDates.length > 0) {
-                            // --- CORRECCIÓN AQUÍ: Sin '/gestion/' ---
-                            const url = `/reservar/${canchaId}/${dateStr}/`; // URL relativa a la raíz
-
-                            // Redirige al navegador a la nueva URL
+                            const url = `/reservar/${canchaId}/${dateStr}/`;
                             window.location.href = url;
                         }
                     }
@@ -80,6 +76,5 @@
         }
     });
 </script>
-
-
 {% endblock %}
+

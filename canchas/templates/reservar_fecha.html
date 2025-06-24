@@ -45,7 +45,7 @@
 
                     {% else %}
                         <!-- Horario Ocupado: Tarjeta Informativa -->
-                        <div class="horario-card {% if slot.estado_display == 'reservado' %}reservado{% else %}pendiente_pago_disp{% endif %}">
+                        <div class="horario-card {% if slot.estado_display == 'reservado' %}reservado{% elif slot.es_mensual %}pendiente_pago_mensual{% else %}pendiente_pago_disp{% endif %}">
                             <div class="card-content">
                                 <div class="info-header">
                                     <span class="horario-hora">{{ slot.hora_inicio_str }}</span>
@@ -132,6 +132,9 @@
         --slot-reservado-border: #f5c2c7;
         --slot-pendiente-bg: #fff9e6;
         --slot-pendiente-border: #ffecb5;
+        /* --- NUEVO COLOR PARA PENDIENTE MENSUAL --- */
+        --slot-pendiente-mensual-bg: #e6f7ff; /* Un azul claro */
+        --slot-pendiente-mensual-border: #91d5ff;
     }
 
     /* --- Cuadrícula de Horarios Responsiva --- */
@@ -169,6 +172,13 @@
     .horario-card.pendiente_pago_disp {
         background-color: var(--slot-pendiente-bg);
         border-color: var(--slot-pendiente-border);
+    }
+
+    /* --- NUEVO ESTILO PARA LA TARJETA MENSUAL --- */
+    .horario-card.pendiente_pago_mensual {
+        background-color: var(--slot-pendiente-mensual-bg);
+        border-color: var(--slot-pendiente-mensual-border);
+        border-width: 2px; /* Opcional: para que se destaque más */
     }
 
     /* --- Contenido de la Tarjeta --- */
