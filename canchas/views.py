@@ -1616,7 +1616,7 @@ class HistorialView(View):
 
     def get(self, request):
         # Obtener la fecha de HOY
-        hoy = timezone.localdate() # Obtiene la fecha actual según la zona horaria de Django
+        hoy = get_fecha_operativa_actual() # Obtiene la fecha actual según la zona horaria de Django
 
         # Calcular totales SOLO para hoy
         total_ingresos_hoy = Ingreso.objects.filter(
