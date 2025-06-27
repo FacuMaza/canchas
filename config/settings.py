@@ -166,7 +166,7 @@ MEDIA_URL = '/media/'
 # Con tu BASE_DIR, esto será: C:\viejopadel\config\mediafiles\
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
-
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 if not DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
