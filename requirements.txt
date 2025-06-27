@@ -19,3 +19,6 @@ tinyhtml5==2.0.0
 tzdata==2025.2
 webencodings==0.5.1
 zopfli==0.2.3.post1
+gunicorn
+dj-database-url
+python-dotenv
