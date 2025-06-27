@@ -23,3 +23,5 @@ gunicorn
 dj-database-url
 python-dotenv
 pytz
+dj-database-url
+psycopg2-binary
