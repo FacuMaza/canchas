@@ -595,31 +595,37 @@ class PicaditoForm(forms.ModelForm):
 from django.forms import inlineformset_factory, BaseInlineFormSet
 class ParticipantePicaditoForm(forms.ModelForm):
     """Formulario para un participante individual dentro del FormSet."""
-    # Usar el queryset filtrado como antes
+    
+    # ==========================================================
+    # ========= ESTE ES EL SEGUNDO CAMBIO IMPORTANTE ============
+    # Actualizamos el queryset aquí también para que coincida.
+    # ==========================================================
     items_consumidos = forms.ModelMultipleChoiceField(
-        queryset=Extra.objects.filter(activo=True).order_by('nombre'),
-        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input item-consumido-check'}), # Clase para JS
+        queryset=Extra.objects.filter(
+            activo=True, 
+            stocks__isnull=False  # <-- ¡AÑADIMOS EL MISMO FILTRO AQUÍ!
+        ).distinct().order_by('nombre'),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input item-consumido-check'}),
         required=False,
         label="Items Consumidos"
     )
-    # Campo oculto para los PKs de items con descuento
+
+    # El resto de tu formulario (items_con_descuento_pks, costo_cancha, Meta, etc.)
+    # no necesita cambios.
     items_con_descuento_pks = forms.CharField(
-        widget=forms.HiddenInput(attrs={'class': 'items-descuento-pks-hidden'}), # Clase para JS
+        widget=forms.HiddenInput(attrs={'class': 'items-descuento-pks-hidden'}),
         required=False
     )
-    # Costo cancha como antes
     costo_cancha = forms.DecimalField(
         max_digits=10, decimal_places=2,
         required=False,
         initial=Decimal('0.00'),
-        # Clases para JS y estilo
         widget=forms.NumberInput(attrs={'class': 'form-control form-control-sm text-end costo-cancha-input', 'step': '0.01', 'placeholder': '0.00'}),
         label="Costo Cancha ($)"
     )
 
     class Meta:
         model = ParticipantePicadito
-        # Campos que el usuario llenará directamente + el oculto
         fields = ['nombre_jugador', 'costo_cancha', 'items_consumidos', 'items_con_descuento_pks']
         widgets = {
             'nombre_jugador': forms.TextInput(attrs={'class': 'form-control form-control-sm', 'placeholder': 'Nombre Jugador'}),
@@ -627,8 +633,6 @@ class ParticipantePicaditoForm(forms.ModelForm):
         labels = {
             'nombre_jugador': 'Nombre',
         }
-
-    # __init__ se puede mantener como estaba o simplificar si no añades data-precio aquí
 
 # FormSet como antes
 ParticipantePicaditoFormSet = inlineformset_factory(

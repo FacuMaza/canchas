@@ -2593,22 +2593,25 @@ class PicaditoCreateSimplifiedView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['titulo_pagina'] = "Registrar Nuevo Picadito"
 
-        # Manejo del FormSet
-        if 'participantes_formset' not in context: # Evitar sobreescribir si ya viene de form_invalid
+        if 'participantes_formset' not in context:
             if self.request.method == 'POST':
-                 # Para POST inválido, usa los datos POST y prefijo
                  logger.debug("get_context_data (en POST fallido): Creando formset desde request.POST")
                  context['participantes_formset'] = ParticipantePicaditoFormSet(self.request.POST, instance=self.object, prefix='participantes')
-            else: # --- ESTA ES LA PARTE PARA GET ---
-                 # Para GET, instancia SIN datos POST, con instance=None y prefijo
+            else:
                  logger.debug("get_context_data (en GET): Creando formset vacío")
-                 # La clave es que ParticipantePicaditoFormSet se defina con 'extra=N'
                  context['participantes_formset'] = ParticipantePicaditoFormSet(instance=None, prefix='participantes')
-                 # ------------------------------------
 
-        # Pasar extras activos (sin cambios)
-        extras_qs = Extra.objects.filter(activo=True)
-        context['extras_activos'] = {extra.pk: extra for extra in extras_qs}
+        # ==========================================================
+        # ========= ESTE ES EL CAMBIO MÁS IMPORTANTE ================
+        # Antes, filtraba solo por 'activo=True'.
+        # Ahora, también exige que exista una entrada de stock relacionada.
+        # ==========================================================
+        extras_qs = Extra.objects.filter(
+            activo=True,
+            stocks__isnull=False  # <-- ¡ESTA ES LA LÍNEA CLAVE!
+        ).distinct().order_by('nombre')
+        
+        context['extras_activos'] = extras_qs
 
         logger.info("--- Picadito Create get_context_data finalizado ---")
         return context

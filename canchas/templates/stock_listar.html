@@ -1,39 +1,111 @@
 {% extends 'base.html' %}
 {% block title %}Listar Stock{% endblock %}
+
 {% block content %}
-<h1>Stock Disponible</h1>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad</th>
-            <th>Última Actualización</th>
-            <th>Acciones</th> <!-- Columna de acciones sin cambios -->
-        </tr>
-    </thead>
-    <tbody>
-        {% for stock in stocks %}
-        <tr>
-            <td>{{ stock.extra.nombre }}</td>
-            <td>{{ stock.cantidad }}</td>
-            <td>{{ stock.fecha_actualizacion|date:"Y-m-d H:i" }}</td>
-            <td>
-                <a href="{% url 'stock_editar' stock.pk %}" class="btn btn-sm btn-warning">Editar</a>
-                {# --- INICIO: Botón Eliminar Añadido --- #}
-                <a href="{% url 'stock_eliminar' stock.pk %}"
-                   class="btn btn-sm btn-danger"
-                   onclick="return confirm('¿Estás seguro de que deseas eliminar este item?');">
-                   Eliminar
-                </a>
-                {# --- FIN: Botón Eliminar Añadido --- #}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="4" class="text-center">No hay stock registrado.</td> <!-- Colspan sigue siendo 4 -->
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-<a href="{% url 'stock_cargar' %}" class="btn btn-primary">Cargar Stock</a>
+<div class="container mt-4">
+    <h1>Stock Disponible</h1>
+
+    <!-- ========================================================== -->
+    <!-- PARTE 1: El Campo de Búsqueda (HTML)                       -->
+    <!-- Añadimos un campo de texto para que el usuario escriba.   -->
+    <!-- Le damos un ID para que el JavaScript pueda encontrarlo.  -->
+    <!-- ========================================================== -->
+    <div class="mb-3">
+        <input type="text" id="stock-search-input" class="form-control" placeholder="Buscar por nombre de producto...">
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- PARTE 2: La Tabla Modificada                             -->
+    <!-- Añadimos un ID al tbody para que sea fácil seleccionar    -->
+    <!-- todas las filas que contiene.                            -->
+    <!-- ========================================================== -->
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Última Actualización</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="stock-table-body">
+            {% for stock in stocks %}
+            <tr>
+                <td>{{ stock.extra.nombre }}</td>
+                <td>{{ stock.cantidad }}</td>
+                <td>{{ stock.fecha_actualizacion|date:"Y-m-d H:i" }}</td>
+                <td>
+                    <a href="{% url 'stock_editar' stock.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                    <a href="{% url 'stock_eliminar' stock.pk %}"
+                       class="btn btn-sm btn-danger"
+                       onclick="return confirm('¿Estás seguro de que deseas eliminar este item?');">
+                       Eliminar
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" class="text-center">No hay stock registrado.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{% url 'stock_cargar' %}" class="btn btn-primary">Cargar Stock</a>
+</div>
+{% endblock %}
+
+
+<!-- ========================================================== -->
+<!-- PARTE 3: La Lógica del Filtro (JavaScript)                 -->
+<!-- Este bloque se encarga de la magia del filtrado en tiempo  -->
+<!-- real.                                                      -->
+<!-- ========================================================== -->
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Seleccionamos los elementos que necesitamos: el campo de búsqueda y el cuerpo de la tabla.
+    const searchInput = document.getElementById('stock-search-input');
+    const tableBody = document.getElementById('stock-table-body');
+
+    // Si alguno de los elementos no existe, detenemos el script para evitar errores.
+    if (!searchInput || !tableBody) {
+        return;
+    }
+
+    // 2. Añadimos un "escuchador" de eventos al campo de búsqueda.
+    // El evento 'input' se dispara cada vez que el texto cambia (al teclear, pegar, etc.).
+    searchInput.addEventListener('input', function() {
+        // 3. Obtenemos el texto de búsqueda, lo convertimos a minúsculas para que no distinga
+        //    entre 'Agua' y 'agua', y quitamos espacios en blanco de los costados.
+        const searchTerm = searchInput.value.toLowerCase().trim();
+
+        // 4. Seleccionamos todas las filas (<tr>) dentro del cuerpo de la tabla.
+        const rows = tableBody.querySelectorAll('tr');
+
+        // 5. Recorremos cada una de las filas.
+        rows.forEach(function(row) {
+            // Para cada fila, seleccionamos la primera celda (<td>), que es donde está el nombre del producto.
+            const productNameCell = row.querySelector('td:first-child');
+
+            // Si la celda existe...
+            if (productNameCell) {
+                // Obtenemos el texto del nombre del producto y también lo pasamos a minúsculas.
+                const productName = productNameCell.textContent.toLowerCase().trim();
+
+                // 6. Comparamos si el nombre del producto incluye el término de búsqueda.
+                if (productName.includes(searchTerm)) {
+                    // Si coincide, nos aseguramos de que la fila sea visible.
+                    row.style.display = ''; // '' restablece el display a su valor por defecto (table-row).
+                } else {
+                    // Si no coincide, ocultamos la fila.
+                    row.style.display = 'none';
+                }
+            }
+        });
+    });
+
+    console.log("Filtro de búsqueda de stock inicializado.");
+});
+</script>
 {% endblock %}
