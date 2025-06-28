@@ -13,13 +13,7 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('reservar-turno/<int:cancha_pk>/<str:fecha>/', views.PublicReservarClienteView.as_view(), name='public-reservar-cliente'),
     path('reserva-exitosa/', views.ReservaExitosaView.as_view(), name='reserva-exitosa'),
-]
-
-
-## RECUPERAR CONTRASEÑA
-
-urlpatterns += [
-     path('reset_password/', 
+    path('reset_password/', 
      auth_views.PasswordResetView.as_view(
          template_name="password_reset_form.html",
          email_template_name="password_reset_email.html", # Django buscará esta plantilla
