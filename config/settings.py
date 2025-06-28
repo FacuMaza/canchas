@@ -167,29 +167,38 @@ MEDIA_URL = '/media/'
 # Con tu BASE_DIR, esto será: C:\viejopadel\config\mediafiles\
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
-DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-if DEBUG:
-    # --- Configuración para DESARROLLO LOCAL ---
-    # Imprime los correos en la consola donde ejecutas 'runserver'
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("*************************************************")
-    print("MODO DEBUG: Emails se imprimirán en la consola.")
-    print("*************************************************")
-else:
-    # --- Configuración para PRODUCCIÓN (DigitalOcean) ---
-    # Envía correos reales a través de SendGrid
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.environ.get('EMAIL_HOST')
-    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = True  # SendGrid siempre usa TLS
-    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+import os
+import environ # <-- Importamos la nueva librería
+from pathlib import Path
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# --- AÑADE ESTAS DOS LÍNEAS ---
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+
+
+
+
 
 # ==============================================================================
-# FIN DE LA CONFIGURACIÓN DE EMAIL
+# CONFIGURACIÓN DE ENVÍO DE EMAIL (PARA RESETEO DE CONTRASEÑA, ETC.)
 # ==============================================================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+# Leemos las credenciales de nuestro archivo seguro .env
+EMAIL_HOST_USER = env('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL')
+
+# Opcional pero recomendado: para que el remitente en los correos de error se vea bien.
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 
 SITE_ID = 1
