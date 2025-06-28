@@ -12,14 +12,29 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
-import environ # <-- Importamos la nueva librería
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- AÑADE ESTAS DOS LÍNEAS ---
-env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+# ==============================================================================
+# CONFIGURACIÓN DE ENVÍO DE EMAIL (PARA RESETEO DE CONTRASEÑA, ETC.)
+# ==============================================================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER='apikey'
+
+# Pega aquí la clave API que copiaste de SendGrid
+EMAIL_HOST_PASSWORD='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'
+
+# Escribe aquí el email que verificaste en SendGrid en el Paso 1.2
+DEFAULT_FROM_EMAIL='ffullcanchas@gmail.com'
+
+# Opcional pero recomendado
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 
 
@@ -180,21 +195,6 @@ MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 
 
-# ==============================================================================
-# CONFIGURACIÓN DE ENVÍO DE EMAIL (PARA RESETEO DE CONTRASEÑA, ETC.)
-# ==============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-
-# Leemos las credenciales de nuestro archivo seguro .env
-EMAIL_HOST_USER = env('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL')
-
-# Opcional pero recomendado: para que el remitente en los correos de error se vea bien.
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 
 SITE_ID = 1
