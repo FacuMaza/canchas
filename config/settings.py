@@ -12,10 +12,15 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+import environ # <-- Importamos la nueva librería
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-# BASE_DIR apunta a C:\viejopadel\config\
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# --- AÑADE ESTAS DOS LÍNEAS ---
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
 
 
 # Quick-start development settings - unsuitable for production
@@ -168,16 +173,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 
-import os
-import environ # <-- Importamos la nueva librería
-from pathlib import Path
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# --- AÑADE ESTAS DOS LÍNEAS ---
-env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 
 
