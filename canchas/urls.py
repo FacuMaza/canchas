@@ -24,7 +24,8 @@ urlpatterns += [
              # La ruta a las plantillas debe ser así si están en la carpeta de la app
              template_name="password_reset_form.html",
              email_template_name="password_reset_email.html",
-             subject_template_name="password_reset_subject.txt"
+             subject_template_name="password_reset_subject.txt",
+             extra_email_context={'asunto_prueba': 'ESTE ES EL EMAIL DEL PROYECTO (CONFIG)'}
          ),
          name="password_reset"),
     path('reset_password/done/',
@@ -36,6 +37,7 @@ urlpatterns += [
     path('reset/done/',
          auth_views.PasswordResetCompleteView.as_view(template_name="password_reset_complete.html"),
          name="password_reset_complete"),
+         
 ]
 
 
