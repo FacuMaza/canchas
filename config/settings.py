@@ -28,7 +28,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER='apikey'
 
 # Pega aquí la clave API que copiaste de SendGrid
-EMAIL_HOST_PASSWORD='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'
+EMAIL_HOST_PASSWORD='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'
 
 # Escribe aquí el email que verificaste en SendGrid en el Paso 1.2
 DEFAULT_FROM_EMAIL='ffullcanchas@gmail.com'
