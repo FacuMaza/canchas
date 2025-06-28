@@ -20,8 +20,12 @@ urlpatterns = [
 
 urlpatterns += [
      path('reset_password/', 
-         auth_views.PasswordResetView.as_view(template_name="password_reset_form.html"), 
-         name="password_reset"),
+     auth_views.PasswordResetView.as_view(
+         template_name="password_reset_form.html",
+         email_template_name="password_reset_email.html",      # <-- AÑADE ESTO
+         subject_template_name="password_reset_subject.txt"   # <-- Y ESTO
+     ), 
+     name="password_reset"),
     path('reset_password/done/', 
          auth_views.PasswordResetDoneView.as_view(template_name="password_reset_done.html"), 
          name="password_reset_done"),
