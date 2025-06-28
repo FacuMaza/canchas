@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'django.contrib.sites',
     'django.contrib.staticfiles', # Asegúrate que está aquí
     'django.contrib.humanize',
     'crispy_forms',
@@ -189,3 +190,6 @@ else:
 # ==============================================================================
 # FIN DE LA CONFIGURACIÓN DE EMAIL
 # ==============================================================================
+
+
+SITE_ID = 1
